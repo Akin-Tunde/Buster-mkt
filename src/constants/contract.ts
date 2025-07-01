@@ -7,8 +7,8 @@ export const publicClient = createPublicClient({
   transport: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL),
 });
 
-export const contractAddress = "0xE82b18aE4003769C0353700751C95Df536c044e0";
-export const tokenAddress = "0x55b04F15A1878fa5091D5E35ebceBC06A5EC2F31";
+export const contractAddress = "0xd24261cD87Ac11A8961a2d5df7036ad87ca7F02A";
+export const tokenAddress = "0x53Bd7F868764333de01643ca9102ee4297eFA3cb";
 
 export const contractAbi = [
   {
