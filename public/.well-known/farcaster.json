@@ -14,6 +14,7 @@
     "buttonTitle": "Explore Markets🏪",
     "splashImageUrl": "https://buster-mkt.vercel.app/icon.jpg",
     "splashBackgroundColor": "#131E2A",
+    "webhookUrl":"https://api.neynar.com/f/app/7081555f-827d-4577-8676-f3e0443d4016/event",
     "subtitle": "PREDICTION MARKET",
     "description": "Bet on political news and policies",
     "primaryCategory": "finance",
