@@ -393,30 +393,12 @@ export function MarketBuyInterface({
       const appUrl =
         process.env.NEXT_PUBLIC_APP_URL || "https://buster-mkt.vercel.app";
       const marketPageUrl = `${appUrl}/market/${marketId}/details`;
-      const imageUrl = `${appUrl}/api/market-image?marketId=${marketId}`;
-
-      // Create mini app embed format
-      const miniAppEmbed = {
-        version: "next" as const,
-        imageUrl: imageUrl,
-        button: {
-          title: "View Market Details",
-          action: {
-            type: "launch_frame" as const,
-            name: market?.question?.substring(0, 30) || `Market ${marketId}`,
-            url: marketPageUrl,
-            iconUrl: "https://buster-mkt.vercel.app/icon.png",
-            splashImageUrl: "https://buster-mkt.vercel.app/icon.jpg",
-            splashBackgroundColor: "#131E2A",
-          },
-        },
-      };
 
       await sdk.actions.composeCast({
         text: `I just bought shares in this market on Buster Market: ${
           market?.question || `Market ${marketId}`
         }`,
-        embeds: [JSON.stringify(miniAppEmbed)],
+        embeds: [marketPageUrl],
       });
     } catch (error) {
       console.error("Failed to compose cast after purchase:", error);

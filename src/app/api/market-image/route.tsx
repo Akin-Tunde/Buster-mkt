@@ -174,10 +174,22 @@ export async function GET(request: NextRequest) {
   console.log(
     `--- Market Image API: Received request for marketId: ${marketId} ---`
   );
+  console.log("Market Image API: Full URL:", request.url);
+  console.log("Market Image API: All search params:", Object.fromEntries(searchParams.entries()));
 
-  if (!marketId || isNaN(Number(marketId))) {
-    console.error(`Market Image API: Invalid marketId: ${marketId}`);
-    return new NextResponse("Invalid market ID", { status: 400 });
+  // More robust validation
+  if (!marketId) {
+    console.error("Market Image API: No marketId parameter provided");
+    return new NextResponse("Missing market ID parameter", { status: 400 });
+  }
+
+  // Clean the marketId string and validate
+  const cleanMarketId = marketId.trim();
+  const marketIdNumber = Number(cleanMarketId);
+  
+  if (isNaN(marketIdNumber) || marketIdNumber < 0 || !Number.isInteger(marketIdNumber)) {
+    console.error(`Market Image API: Invalid marketId: "${marketId}" (cleaned: "${cleanMarketId}")`);
+    return new NextResponse("Invalid market ID format", { status: 400 });
   }
 
   try {
@@ -188,12 +200,12 @@ export async function GET(request: NextRequest) {
     ]);
 
     console.log(
-      `Market Image API: Successfully loaded fonts for marketId ${marketId}`
+      `Market Image API: Successfully loaded fonts for marketId ${cleanMarketId}`
     );
 
-    const market = await fetchMarketData(marketId);
+    const market = await fetchMarketData(cleanMarketId);
     console.log(
-      `Market Image API: Market data processed for marketId ${marketId}:`,
+      `Market Image API: Market data processed for marketId ${cleanMarketId}:`,
       market
     );
 
@@ -262,7 +274,7 @@ export async function GET(request: NextRequest) {
               opacity: 0.9,
             }}
           >
-            Market #{marketId}
+            Market #{cleanMarketId}
           </div>
         </div>
 
@@ -527,7 +539,7 @@ export async function GET(request: NextRequest) {
     const pngBuffer = await sharp(Buffer.from(svg)).png().toBuffer();
 
     console.log(
-      `Market Image API: Successfully generated image for marketId ${marketId}`
+      `Market Image API: Successfully generated image for marketId ${cleanMarketId}`
     );
 
     return new NextResponse(new Uint8Array(pngBuffer), {
@@ -538,7 +550,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error(
-      `Market Image API: Error generating image for marketId ${marketId}:`,
+      `Market Image API: Error generating image for marketId ${cleanMarketId}:`,
       error
     );
     return new NextResponse("Error generating image", { status: 500 });
