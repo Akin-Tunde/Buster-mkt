@@ -18,6 +18,7 @@ import { MarketSharesDisplay } from "@/components/market-shares-display";
 import { UrlPreview } from "./url-preview";
 import { MarketContext } from "./market-context";
 import { CommentSystem } from "./CommentSystem";
+import MarketChart from "./market-chart";
 
 interface Market {
   question: string;
@@ -242,6 +243,16 @@ export function MarketDetailsClient({
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Market Analytics Charts */}
+          <div className="mt-8 border-t pt-6">
+            <MarketChart
+              marketId={marketId}
+              optionAPercentage={optionAPercentage}
+              optionBPercentage={optionBPercentage}
+              totalShares={totalSharesDisplay}
+            />
           </div>
 
           {/* Comment System */}

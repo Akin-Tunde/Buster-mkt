@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "imagedelivery.net",
       },
+      // Cloudflare Images (alternative pattern)
+      {
+        protocol: "https",
+        hostname: "*.imagedelivery.net",
+      },
       // Farcaster profile picture domains
       {
         protocol: "https",
@@ -66,6 +71,12 @@ const nextConfig: NextConfig = {
         hostname: "*.ipfs.nftstorage.link",
       },
     ],
+  },
+  eslint: {
+    ignoreDuringBuilds: false,
+  },
+  typescript: {
+    ignoreBuildErrors: false,
   },
 };
 
