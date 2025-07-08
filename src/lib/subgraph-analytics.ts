@@ -1,8 +1,7 @@
 import {
   subgraphClient,
   GET_MARKET_ANALYTICS,
-  MarketData,
-  SharesPurchased,
+  MarketAnalyticsData,
 } from "@/lib/subgraph";
 import {
   MarketAnalytics,
@@ -25,16 +24,16 @@ export class SubgraphAnalyticsService {
     }
 
     try {
-      const data = await subgraphClient.request<{ market: MarketData }>(
+      const data = await subgraphClient.request<MarketAnalyticsData>(
         GET_MARKET_ANALYTICS,
         { marketId }
       );
 
-      if (!data.market) {
+      if (!data.marketCreateds || data.marketCreateds.length === 0) {
         return this.generateFallbackAnalytics();
       }
 
-      const analytics = this.processMarketData(data.market);
+      const analytics = this.processMarketData(data);
 
       // Update cache
       this.cache.set(marketId, {
@@ -49,8 +48,8 @@ export class SubgraphAnalyticsService {
     }
   }
 
-  private processMarketData(market: MarketData): MarketAnalytics {
-    const events = market.sharesPurchaseds.map((event) => ({
+  private processMarketData(data: MarketAnalyticsData): MarketAnalytics {
+    const events = data.sharesPurchaseds.map((event) => ({
       ...event,
       amount: parseFloat(event.amount),
       timestamp: parseInt(event.blockTimestamp) * 1000,

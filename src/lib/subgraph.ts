@@ -1,9 +1,9 @@
 import { GraphQLClient } from "graphql-request";
 
-// You'll need to replace this with your actual subgraph URL
+// Your deployed subgraph URL
 const SUBGRAPH_URL =
   process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-  "https://api.thegraph.com/subgraphs/name/your-subgraph";
+  "https://api.studio.thegraph.com/query/103701/bustermkt/v0.0.1";
 
 export const subgraphClient = new GraphQLClient(SUBGRAPH_URL);
 
@@ -31,49 +31,47 @@ export const GET_MARKET_EVENTS = `
 
 export const GET_MARKET_ANALYTICS = `
   query GetMarketAnalytics($marketId: String!) {
-    market(id: $marketId) {
+    marketCreateds(
+      where: { marketId: $marketId }
+      first: 1
+    ) {
       id
+      marketId
       question
-      totalVolume
-      totalTrades
-      createdAt
+      optionA
+      optionB
       endTime
-      resolved
-      sharesPurchaseds(
-        orderBy: blockTimestamp
-        orderDirection: desc
-        first: 1000
-      ) {
-        id
-        buyer
-        isOptionA
-        amount
-        blockTimestamp
-        transactionHash
-      }
+      blockNumber
+      blockTimestamp
+    }
+    sharesPurchaseds(
+      where: { marketId: $marketId }
+      orderBy: blockTimestamp
+      orderDirection: desc
+      first: 1000
+    ) {
+      id
+      marketId
+      buyer
+      isOptionA
+      amount
+      blockTimestamp
+      transactionHash
     }
   }
 `;
 
-export const GET_AGGREGATED_MARKET_DATA = `
-  query GetAggregatedMarketData($marketId: String!, $from: BigInt!, $to: BigInt!) {
-    dailyMarketStats(
-      where: { 
-        market: $marketId
-        date_gte: $from
-        date_lte: $to
-      }
-      orderBy: date
-      orderDirection: asc
+export const GET_MARKET_RESOLVED = `
+  query GetMarketResolved($marketId: String!) {
+    marketResolveds(
+      where: { marketId: $marketId }
+      first: 1
     ) {
       id
-      date
-      optionAVolume
-      optionBVolume
-      totalVolume
-      totalTrades
-      priceA
-      priceB
+      marketId
+      outcome
+      blockNumber
+      blockTimestamp
     }
   }
 `;
@@ -89,24 +87,26 @@ export interface SharesPurchased {
   transactionHash: string;
 }
 
-export interface MarketData {
+export interface MarketCreated {
   id: string;
+  marketId: string;
   question: string;
-  totalVolume: string;
-  totalTrades: string;
-  createdAt: string;
+  optionA: string;
+  optionB: string;
   endTime: string;
-  resolved: boolean;
-  sharesPurchaseds: SharesPurchased[];
+  blockNumber: string;
+  blockTimestamp: string;
 }
 
-export interface DailyMarketStats {
+export interface MarketResolved {
   id: string;
-  date: string;
-  optionAVolume: string;
-  optionBVolume: string;
-  totalVolume: string;
-  totalTrades: string;
-  priceA: string;
-  priceB: string;
+  marketId: string;
+  outcome: number;
+  blockNumber: string;
+  blockTimestamp: string;
+}
+
+export interface MarketAnalyticsData {
+  marketCreateds: MarketCreated[];
+  sharesPurchaseds: SharesPurchased[];
 }
