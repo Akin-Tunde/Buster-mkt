@@ -48,7 +48,9 @@ const LinkifiedText = ({ text }: { text: string }) => {
         urlRegex.test(part) ? (
           <UrlPreview key={index} url={part} className="block" />
         ) : (
-          <span key={index}>{part}</span>
+          <span key={index} className="text-gray-900 dark:text-gray-100">
+            {part}
+          </span>
         )
       )}
     </div>
@@ -115,23 +117,28 @@ export function MarketDetailsClient({
   // }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
       <Navbar />
       <main className="flex-grow container mx-auto px-4 pt-4 pb-24 md:p-6">
-        <div className="flex items-center text-sm text-gray-600 mb-4">
+        <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mb-4">
           <Button asChild variant="outline" size="sm" className="mr-2">
             <Link href="/">Home</Link>
           </Button>
-          <Link href="/" className="hover:text-blue-600">
+          <Link
+            href="/"
+            className="hover:text-blue-600 dark:hover:text-blue-400"
+          >
             Markets
           </Link>
           <span className="mx-2">/</span>
-          <span className="text-sm text-gray-600">Market #{marketId}</span>
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            Market #{marketId}
+          </span>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2 md:mb-0">
+            <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-gray-100 mb-2 md:mb-0">
               {/* {market.question} */}
               <LinkifiedText text={market.question} />
             </h1>
@@ -143,17 +150,19 @@ export function MarketDetailsClient({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
             <div className="flex items-center">
-              <Clock className="text-gray-500 w-5 h-5 mr-2" />
+              <Clock className="text-gray-500 dark:text-gray-400 w-5 h-5 mr-2" />
               <div>
                 <MarketTime endTime={market.endTime} />
               </div>
             </div>
 
             <div className="flex items-center">
-              <Users className="text-gray-500 w-5 h-5 mr-2" />
+              <Users className="text-gray-500 dark:text-gray-400 w-5 h-5 mr-2" />
               <div>
-                <div className="text-sm text-gray-600">Reward pool</div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Reward pool
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
                   {totalSharesDisplay.toLocaleString()} Buster
                 </div>
               </div>
@@ -161,10 +170,12 @@ export function MarketDetailsClient({
 
             {market.resolved && (
               <div className="flex items-center">
-                <Award className="text-green-600 w-5 h-5 mr-2" />
+                <Award className="text-green-600 dark:text-green-400 w-5 h-5 mr-2" />
                 <div>
-                  <div className="text-sm text-gray-600">Winning Option</div>
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Winning Option
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
                     {market.outcome === 1 ? market.optionA : market.optionB}
                   </div>
                 </div>
@@ -173,7 +184,7 @@ export function MarketDetailsClient({
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
           <div className="mb-6">
             {isEnded ? (
               market.resolved ? (
@@ -191,27 +202,27 @@ export function MarketDetailsClient({
             )}
           </div>
 
-          <div className="mt-8 border-t pt-6">
-            <h3 className="text-lg font-semibold mb-4">
+          <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">
               Current Market Sentiment
             </h3>
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between mb-1">
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
                     {market.optionA}
                   </span>
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
                     {optionAPercentage}%
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
                   <div
-                    className="bg-blue-600 h-2.5 rounded-full"
+                    className="bg-blue-600 dark:bg-blue-500 h-2.5 rounded-full"
                     style={{ width: `${optionAPercentage}%` }}
                   ></div>
                 </div>
-                <div className="text-sm text-gray-600 mt-1">
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {(
                     Number(market.totalOptionAShares) /
                     10 ** TOKEN_DECIMALS
@@ -221,20 +232,20 @@ export function MarketDetailsClient({
               </div>
               <div>
                 <div className="flex justify-between mb-1">
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
                     {market.optionB}
                   </span>
-                  <span className="text-sm text-gray-600">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
                     {optionBPercentage}%
                   </span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
                   <div
-                    className="bg-purple-600 h-2.5 rounded-full"
+                    className="bg-purple-600 dark:bg-purple-500 h-2.5 rounded-full"
                     style={{ width: `${optionBPercentage}%` }}
                   ></div>
                 </div>
-                <div className="text-sm text-gray-600 mt-1">
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   {(
                     Number(market.totalOptionBShares) /
                     10 ** TOKEN_DECIMALS
@@ -246,12 +257,12 @@ export function MarketDetailsClient({
           </div>
 
           {/* Market Analytics Charts */}
-          <div className="mt-8 border-t pt-6">
-            <MarketChart marketId={marketId} />
+          <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <MarketChart marketId={marketId} market={market} />
           </div>
 
           {/* Comment System */}
-          <div className="mt-8">
+          <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
             <CommentSystem marketId={marketId} />
           </div>
         </div>
