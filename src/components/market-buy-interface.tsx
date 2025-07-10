@@ -395,7 +395,7 @@ export function MarketBuyInterface({
       const marketPageUrl = `${appUrl}/market/${marketId}/details`;
 
       await sdk.actions.composeCast({
-        text: `I just bought shares in this market on Buster Market: ${
+        text: `I just bought shares in this market on Policast: ${
           market?.question || `Market ${marketId}`
         }`,
         embeds: [marketPageUrl],
