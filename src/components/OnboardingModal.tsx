@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { sdk } from "@farcaster/miniapp-sdk";
+import { sdk } from "@farcaster/frame-sdk";
 // import { ClaimTokensButton } from "./ClaimTokensButton";
 import {
   Dialog,
