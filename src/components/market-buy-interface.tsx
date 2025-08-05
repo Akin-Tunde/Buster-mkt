@@ -1,5 +1,5 @@
 "use client";
-//New EIP-5792 batch transactions
+//New EIP-5792 batch transactions// the txn is still two step, even tho we're using the batch txn, and shoiwng as if both works at the same time, only approval works, we lost lots of trades due to this bug, many users left thinking they bought shares but only approval works then another txn to buy which is now two txn, many eft after first txn thinking they're doe
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { useState, useRef, useEffect, useCallback } from "react";
