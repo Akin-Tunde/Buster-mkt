@@ -9,6 +9,7 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
   useSendCalls,
+  useConnectorClient,
   type BaseError,
 } from "wagmi";
 import {
@@ -61,8 +62,8 @@ export function MarketBuyInterface({
   marketId,
   market,
 }: MarketBuyInterfaceProps) {
-  const { address: accountAddress, isConnected } = useAccount();
-  // const { data: connectorClient } = useConnectorClient();
+  const { address: accountAddress, isConnected, connector } = useAccount();
+  const { data: connectorClient } = useConnectorClient();
   const {
     data: hash,
     writeContractAsync,
@@ -77,6 +78,17 @@ export function MarketBuyInterface({
     hash,
   });
   const { toast } = useToast();
+
+  // Check if we're using Farcaster connector
+  const isFarcasterConnector =
+    connector?.id === "farcasterMiniApp" ||
+    connector?.name?.includes("Farcaster");
+
+  console.log("=== CONNECTOR DEBUG ===");
+  console.log("Connector ID:", connector?.id);
+  console.log("Connector Name:", connector?.name);
+  console.log("Is Farcaster:", isFarcasterConnector);
+  console.log("Connector Client:", connectorClient);
 
   const [isBuying, setIsBuying] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -96,7 +108,10 @@ export function MarketBuyInterface({
   const { sendCalls, isPending: isSendingCalls } = useSendCalls({
     mutation: {
       onSuccess: (data) => {
+        console.log("=== BATCH TRANSACTION CALLBACK ===");
         console.log("Batch transaction submitted with id:", data.id);
+        console.log("Batch capabilities:", data.capabilities);
+
         toast({
           title: "Batch Transaction Submitted",
           description:
@@ -106,27 +121,80 @@ export function MarketBuyInterface({
         // Verification workaround for Farcaster wallet
         // The onSuccess fires when the batch is submitted, not necessarily when both calls succeed
         const balanceBefore = balance;
+        const allowanceBefore = userAllowance;
+
+        console.log("=== PRE-VERIFICATION STATE ===");
+        console.log("Balance before:", balanceBefore.toString());
+        console.log("Allowance before:", allowanceBefore.toString());
+
         setTimeout(() => {
-          refetchBalance().then((newBalanceQuery) => {
-            const newBalance =
-              (newBalanceQuery.data as bigint | undefined) ?? balanceBefore;
-            if (newBalance < balanceBefore) {
-              // Success: Balance decreased, purchase went through
-              console.log("Batch transaction fully successful.");
-              toast({
-                title: "Purchase Successful!",
-                description: "Your shares have been purchased successfully.",
-              });
-              setBuyingStep("purchaseSuccess");
-            } else {
-              // Partial success: Only approval worked
-              console.warn(
-                "Batch transaction partially successful. Approval granted, but purchase failed."
+          console.log("=== VERIFICATION CHECK STARTING ===");
+
+          Promise.all([refetchBalance(), refetchAllowance()])
+            .then(([newBalanceQuery, newAllowanceQuery]) => {
+              const newBalance =
+                (newBalanceQuery.data as bigint | undefined) ?? balanceBefore;
+              const newAllowance =
+                (newAllowanceQuery.data as bigint | undefined) ??
+                allowanceBefore;
+
+              console.log("=== POST-VERIFICATION STATE ===");
+              console.log("Balance after:", newBalance.toString());
+              console.log("Allowance after:", newAllowance.toString());
+              console.log("Balance changed:", newBalance !== balanceBefore);
+              console.log(
+                "Allowance changed:",
+                newAllowance !== allowanceBefore
               );
-              setBuyingStep("batchPartialSuccess");
-            }
-            setIsProcessing(false);
-          });
+
+              const balanceDecreased = newBalance < balanceBefore;
+              const allowanceIncreased = newAllowance > allowanceBefore;
+
+              console.log("=== VERIFICATION RESULTS ===");
+              console.log(
+                "Balance decreased (purchase occurred):",
+                balanceDecreased
+              );
+              console.log(
+                "Allowance increased (approval occurred):",
+                allowanceIncreased
+              );
+
+              if (balanceDecreased) {
+                // Success: Balance decreased, purchase went through
+                console.log("✅ Batch transaction fully successful.");
+                toast({
+                  title: "Purchase Successful!",
+                  description: "Your shares have been purchased successfully.",
+                });
+                setBuyingStep("purchaseSuccess");
+              } else if (allowanceIncreased) {
+                // Partial success: Only approval worked
+                console.warn(
+                  "⚠️ Batch transaction partially successful. Approval granted, but purchase failed."
+                );
+                console.log(
+                  "This indicates Farcaster wallet executed calls sequentially, not atomically"
+                );
+                setBuyingStep("batchPartialSuccess");
+              } else {
+                // Neither worked - this shouldn't happen if onSuccess was called
+                console.error(
+                  "❌ Batch transaction reported success but no state changes detected"
+                );
+                toast({
+                  title: "Transaction Status Unclear",
+                  description:
+                    "Please check your balance and try again if needed.",
+                  variant: "destructive",
+                });
+              }
+              setIsProcessing(false);
+            })
+            .catch((error) => {
+              console.error("Error during verification:", error);
+              setIsProcessing(false);
+            });
         }, 3000); // 3-second delay for block confirmation
       },
       onError: (err) => {
@@ -416,25 +484,44 @@ export function MarketBuyInterface({
     try {
       const amountInUnits = toUnits(amount, tokenDecimals);
 
+      console.log("=== BATCH TRANSACTION DEBUG ===");
+      console.log("Amount in units:", amountInUnits.toString());
+      console.log("Market ID:", marketId);
+      console.log("Selected option A:", selectedOption === "A");
+      console.log("Balance before batch:", balance.toString());
+      console.log("Current allowance:", userAllowance.toString());
+      console.log("Is Farcaster connector:", isFarcasterConnector);
+
+      // For Farcaster, we might need to use a different approach
+      // Let's try without the 'value: 0n' and ensure proper gas estimation
+      const batchCalls = [
+        {
+          to: tokenAddress,
+          data: encodeFunctionData({
+            abi: tokenAbi,
+            functionName: "approve",
+            args: [contractAddress, amountInUnits],
+          }),
+          // Don't include value for ERC20 calls
+        },
+        {
+          to: contractAddress,
+          data: encodeFunctionData({
+            abi: contractAbi,
+            functionName: "buyShares",
+            args: [BigInt(marketId), selectedOption === "A", amountInUnits],
+          }),
+          // Don't include value for contract calls that don't require ETH
+        },
+      ];
+
+      console.log("Batch calls prepared:", batchCalls);
+      console.log("Approve call data:", batchCalls[0].data);
+      console.log("BuyShares call data:", batchCalls[1].data);
+
+      // Try the batch transaction according to Farcaster docs
       sendCalls({
-        calls: [
-          {
-            to: tokenAddress,
-            data: encodeFunctionData({
-              abi: tokenAbi,
-              functionName: "approve",
-              args: [contractAddress, amountInUnits],
-            }),
-          },
-          {
-            to: contractAddress,
-            data: encodeFunctionData({
-              abi: contractAbi,
-              functionName: "buyShares",
-              args: [BigInt(marketId), selectedOption === "A", amountInUnits],
-            }),
-          },
-        ],
+        calls: batchCalls,
       });
     } catch (error: unknown) {
       console.error("Purchase error:", error);
