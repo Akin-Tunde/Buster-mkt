@@ -833,25 +833,44 @@ export function MarketBuyInterface({
                           return;
                         }
 
-                        await writeContractAsync({
-                          address: contractAddress,
-                          abi: contractAbi,
-                          functionName: "buyShares",
-                          args: [
-                            BigInt(marketId),
-                            selectedOption === "A",
-                            amountInUnits,
-                          ],
-                        });
+                        // Try to estimate gas first to give better error messages
+                        try {
+                          console.log(
+                            "Estimating gas for buyShares transaction..."
+                          );
+
+                          await writeContractAsync({
+                            address: contractAddress,
+                            abi: contractAbi,
+                            functionName: "buyShares",
+                            args: [
+                              BigInt(marketId),
+                              selectedOption === "A",
+                              amountInUnits,
+                            ],
+                          });
+                        } catch (estimationError) {
+                          console.error(
+                            "Gas estimation failed:",
+                            estimationError
+                          );
+                          throw estimationError;
+                        }
                       } catch (error: unknown) {
                         console.error("Manual purchase error:", error);
                         let errorMessage =
                           "Failed to complete purchase. Please try again.";
 
                         if (error instanceof Error) {
+                          console.error("Transaction error details:", {
+                            message: error.message,
+                            cause: error.cause,
+                            stack: error.stack,
+                          });
+
                           if (error.message.includes("insufficient funds")) {
                             errorMessage =
-                              "Insufficient ETH for gas fees. Please add more ETH to your wallet.";
+                              "Insufficient ETH for gas fees. Please add more ETH to your wallet. (You have 0.055 ETH - this might be a gas estimation issue)";
                           } else if (error.message.includes("user rejected")) {
                             errorMessage =
                               "Transaction was rejected in your wallet.";
@@ -860,6 +879,9 @@ export function MarketBuyInterface({
                           ) {
                             errorMessage =
                               "Transaction failed. Please check your token balance and allowance.";
+                          } else if (error.message.includes("gas")) {
+                            errorMessage =
+                              "Gas estimation failed. The transaction might be failing for another reason.";
                           } else {
                             errorMessage =
                               (error as BaseError)?.shortMessage ||
