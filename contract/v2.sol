@@ -31,18 +31,6 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         SPONSORED       // Sponsored by third parties with prize pools
     }
 
-    // Order Types
-    enum OrderType {
-        MARKET,
-        LIMIT
-    }
-
-    // Order Side
-    enum OrderSide {
-        BUY,
-        SELL
-    }
-
     struct MarketOption {
         string name;
         string description;
@@ -97,20 +85,6 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         SponsoredMarketConfig sponsorConfig; // NEW: Sponsored market configuration
     }
 
-    struct Order {
-        uint256 id;
-        uint256 marketId;
-        uint256 optionId;
-        address maker;
-        OrderType orderType;
-        OrderSide side;
-        uint256 price; // Price per share in wei
-        uint256 quantity; // Number of shares
-        uint256 filled; // Amount filled
-        uint256 timestamp;
-        bool isActive;
-    }
-
     struct Trade {
         uint256 marketId;
         uint256 optionId;
@@ -119,7 +93,6 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         uint256 price;
         uint256 quantity;
         uint256 timestamp;
-        OrderType orderType;
     }
 
     struct PricePoint {
@@ -136,29 +109,11 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         uint256 tradeCount;
     }
 
-    struct MarketStats {
-        uint256 totalVolume;
-        uint256 participantCount;
-        uint256 averagePrice;
-        uint256 priceVolatility;
-        uint256 lastTradePrice;
-        uint256 lastTradeTime;
-    }
-
-    struct LeaderboardEntry {
-        address user;
-        uint256 totalWinnings;
-        uint256 totalVolume;
-        uint256 winRate;
-        uint256 tradeCount;
-    }
-
     // State variables
     IERC20 public bettingToken;
     address public previousBettingToken;     // NEW: Track previous token for migration
     uint256 public tokenUpdatedAt;           // NEW: When token was last updated
     uint256 public marketCount;
-    uint256 public orderCount;
     uint256 public tradeCount;
     uint256 public platformFeeRate = 200; // 2% (basis points)
     uint256 public constant MAX_OPTIONS = 10;
@@ -169,13 +124,10 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
 
     // Mappings
     mapping(uint256 => Market) internal markets;
-    mapping(uint256 => Order) public orders;
     mapping(address => UserPortfolio) public userPortfolios;
     mapping(address => Trade[]) public userTradeHistory;
     mapping(uint256 => Trade[]) public marketTrades;
     mapping(uint256 => mapping(uint256 => PricePoint[])) public priceHistory; // marketId => optionId => prices
-    mapping(uint256 => uint256[]) public marketOrderBook; // marketId => orderIds
-    mapping(address => uint256[]) public userOrders;
     mapping(MarketCategory => uint256[]) public categoryMarkets;
     mapping(address => uint256) public totalWinnings;
     mapping(MarketType => uint256[]) public marketsByType; // NEW: Markets by type
@@ -198,17 +150,6 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
     event AMMSwap(uint256 indexed marketId, uint256 optionIdIn, uint256 optionIdOut, uint256 amountIn, uint256 amountOut, address trader);
     event LiquidityAdded(uint256 indexed marketId, address indexed provider, uint256 amount);
     event MarketValidated(uint256 indexed marketId, address validator);
-    event OrderPlaced(
-        uint256 indexed orderId,
-        uint256 indexed marketId,
-        uint256 indexed optionId,
-        address maker,
-        OrderType orderType,
-        OrderSide side,
-        uint256 price,
-        uint256 quantity
-    );
-    event OrderCancelled(uint256 indexed orderId, address maker);
     event TradeExecuted(
         uint256 indexed marketId,
         uint256 indexed optionId,
@@ -243,8 +184,8 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
             msg.sender == owner() || hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "Only owner or admin can update betting token"
         );
-        require(_newToken != address(0), "Invalid token address");
-        require(_newToken != address(bettingToken), "Same token already set");
+        require(_newToken != address(0), "Invalid token");
+        require(_newToken != address(bettingToken), "Same token");
         
         previousBettingToken = address(bettingToken);
         bettingToken = IERC20(_newToken);
@@ -259,19 +200,19 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
 
     // Modifiers
     modifier validMarket(uint256 _marketId) {
-        require(_marketId < marketCount, "Market does not exist");
+        require(_marketId < marketCount, "Invalid market");
         _;
     }
 
     modifier marketActive(uint256 _marketId) {
-        require(block.timestamp < markets[_marketId].endTime, "Market has ended");
-        require(!markets[_marketId].resolved, "Market already resolved");
+        require(block.timestamp < markets[_marketId].endTime, "Market ended");
+        require(!markets[_marketId].resolved, "Market resolved");
         _;
     }
 
     modifier validOption(uint256 _marketId, uint256 _optionId) {
         require(_optionId < markets[_marketId].optionCount, "Invalid option");
-        require(markets[_marketId].options[_optionId].isActive, "Option not active");
+        require(markets[_marketId].options[_optionId].isActive, "Option inactive");
         _;
     }
 
@@ -289,7 +230,7 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
     }
 
     function setPlatformFeeRate(uint256 _feeRate) external onlyOwner {
-        require(_feeRate <= 1000, "Fee rate too high"); // Max 10%
+        require(_feeRate <= 1000, "Fee too high");
         platformFeeRate = _feeRate;
     }
 
@@ -316,11 +257,11 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
             msg.sender == owner() || hasRole(QUESTION_CREATOR_ROLE, msg.sender),
             "Not authorized to create markets"
         );
-        require(_duration >= MIN_MARKET_DURATION && _duration <= MAX_MARKET_DURATION, "Invalid duration");
-        require(bytes(_question).length > 0, "Question cannot be empty");
-        require(_optionNames.length >= 2 && _optionNames.length <= MAX_OPTIONS, "Invalid number of options");
-        require(_optionNames.length == _optionDescriptions.length, "Options and descriptions length mismatch");
-        require(_initialLiquidity >= 100 * 1e18, "Minimum 100 tokens initial liquidity required");
+        require(_duration >= MIN_MARKET_DURATION && _duration <= MAX_MARKET_DURATION, "Bad duration");
+        require(bytes(_question).length > 0, "Empty question");
+        require(_optionNames.length >= 2 && _optionNames.length <= MAX_OPTIONS, "Bad option count");
+        require(_optionNames.length == _optionDescriptions.length, "Length mismatch");
+        require(_initialLiquidity >= 100 * 1e18, "Min 100 tokens");
 
         // Transfer initial liquidity from creator
         require(bettingToken.transferFrom(msg.sender, address(this), _initialLiquidity), "Liquidity transfer failed");
@@ -593,8 +534,7 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
             seller: address(0), // Market maker
             price: currentPrice,
             quantity: _quantity,
-            timestamp: block.timestamp,
-            orderType: OrderType.MARKET
+            timestamp: block.timestamp
         });
 
         userTradeHistory[msg.sender].push(trade);
@@ -654,8 +594,7 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
             seller: msg.sender,
             price: currentPrice,
             quantity: _quantity,
-            timestamp: block.timestamp,
-            orderType: OrderType.MARKET
+            timestamp: block.timestamp
         });
 
         userTradeHistory[msg.sender].push(trade);
@@ -874,26 +813,6 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         return userPortfolios[_user];
     }
 
-    function getMarketStats(uint256 _marketId) external view validMarket(_marketId) returns (MarketStats memory) {
-        Market storage market = markets[_marketId];
-        
-        // Calculate average price across all options
-        uint256 totalPrice = 0;
-        for (uint256 i = 0; i < market.optionCount; i++) {
-            totalPrice += market.options[i].currentPrice;
-        }
-        uint256 averagePrice = totalPrice / market.optionCount;
-
-        return MarketStats({
-            totalVolume: market.totalVolume,
-            participantCount: market.participants.length,
-            averagePrice: averagePrice,
-            priceVolatility: 0, // Would need historical price analysis
-            lastTradePrice: marketTrades[_marketId].length > 0 ? marketTrades[_marketId][marketTrades[_marketId].length - 1].price : 0,
-            lastTradeTime: marketTrades[_marketId].length > 0 ? marketTrades[_marketId][marketTrades[_marketId].length - 1].timestamp : 0
-        });
-    }
-
     function getPriceHistory(uint256 _marketId, uint256 _optionId, uint256 _limit) external view returns (PricePoint[] memory) {
         PricePoint[] storage history = priceHistory[_marketId][_optionId];
         uint256 length = history.length;
@@ -924,72 +843,11 @@ contract PolicastMarketV2 is Ownable, ReentrancyGuard, AccessControl, Pausable {
         return result;
     }
 
-    function getLeaderboard(uint256 _start, uint256 _limit) external view returns (LeaderboardEntry[] memory) {
-        require(_start < allParticipants.length, "Start index out of bounds");
-        uint256 end = _start + _limit > allParticipants.length ? allParticipants.length : _start + _limit;
-        LeaderboardEntry[] memory entries = new LeaderboardEntry[](end - _start);
-
-        for (uint256 i = _start; i < end; i++) {
-            address user = allParticipants[i];
-            UserPortfolio memory portfolio = userPortfolios[user];
-            
-            uint256 winRate = portfolio.tradeCount > 0 ? 
-                (portfolio.totalWinnings * 100 / portfolio.totalInvested) : 0;
-
-            entries[i - _start] = LeaderboardEntry({
-                user: user,
-                totalWinnings: portfolio.totalWinnings,
-                totalVolume: portfolio.totalInvested,
-                winRate: winRate,
-                tradeCount: portfolio.tradeCount
-            });
-        }
-        return entries;
-    }
-
     function getMarketCount() external view returns (uint256) {
         return marketCount;
     }
 
     function getBettingToken() external view returns (address) {
         return address(bettingToken);
-    }
-
-    // Getter for markets mapping (since it's internal due to struct complexity)
-    function getMarket(uint256 _marketId) external view validMarket(_marketId) returns (
-        string memory question,
-        string memory description,
-        uint256 endTime,
-        MarketCategory category,
-        MarketType marketType,
-        uint256 winningOptionId,
-        bool resolved,
-        bool disputed,
-        bool validated,
-        address creator,
-        uint256 totalLiquidity,
-        uint256 totalVolume,
-        uint256 createdAt,
-        uint256 optionCount,
-        uint256 ammLiquidityPool
-    ) {
-        Market storage market = markets[_marketId];
-        return (
-            market.question,
-            market.description,
-            market.endTime,
-            market.category,
-            market.marketType,
-            market.winningOptionId,
-            market.resolved,
-            market.disputed,
-            market.validated,
-            market.creator,
-            market.totalLiquidity,
-            market.totalVolume,
-            market.createdAt,
-            market.optionCount,
-            market.ammLiquidityPool
-        );
     }
 }
