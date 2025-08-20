@@ -19,7 +19,7 @@ import {
   tokenAddress,
   tokenAbi,
 } from "@/constants/contract";
-import { encodeFunctionData } from "viem";
+import { formatUnits, encodeFunctionData } from "viem";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -106,6 +106,7 @@ export function MarketBuyInterface({
     null
   );
   const [batchTimeout, setBatchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [isFallbackMode, setIsFallbackMode] = useState(false);
 
   // Clear timeout when component unmounts or transaction completes
   useEffect(() => {
@@ -763,6 +764,7 @@ export function MarketBuyInterface({
 
   const handleFallbackTransaction = async (amountInUnits: bigint) => {
     console.log("Starting fallback transaction");
+    setIsFallbackMode(true);
 
     try {
       const needsApproval = amountInUnits > userAllowance;
@@ -776,14 +778,18 @@ export function MarketBuyInterface({
           functionName: "approve",
           args: [contractAddress, amountInUnits],
         });
+        // Approval transaction will be confirmed by useEffect
+        // which will then trigger handleFallbackPurchase
       } else {
         console.log("Starting direct purchase (already approved)");
+        setBuyingStep("confirm");
         await writeContractAsync({
           address: contractAddress,
           abi: contractAbi,
           functionName: "buyShares",
           args: [BigInt(marketId), selectedOption === "A", amountInUnits],
         });
+        // Purchase transaction will be confirmed by useEffect
       }
     } catch (fallbackError) {
       console.error("Fallback transaction also failed:", fallbackError);
@@ -807,6 +813,44 @@ export function MarketBuyInterface({
         variant: "destructive",
       });
       setIsProcessing(false);
+      setIsFallbackMode(false);
+    }
+  };
+
+  // Separate function to handle the purchase step in fallback mode
+  const handleFallbackPurchase = async () => {
+    console.log("Starting fallback purchase after approval");
+
+    try {
+      setBuyingStep("confirm");
+      setIsProcessing(true);
+
+      const amountInUnits = toUnits(amount, tokenDecimals);
+
+      await writeContractAsync({
+        address: contractAddress,
+        abi: contractAbi,
+        functionName: "buyShares",
+        args: [BigInt(marketId), selectedOption === "A", amountInUnits],
+      });
+      // Purchase transaction will be confirmed by useEffect
+    } catch (purchaseError) {
+      console.error("Fallback purchase failed:", purchaseError);
+      let errorMessage = "Failed to complete purchase. Check your wallet.";
+      if (purchaseError instanceof Error) {
+        errorMessage =
+          (purchaseError as BaseError)?.shortMessage || errorMessage;
+        if (purchaseError.message.includes("user rejected")) {
+          errorMessage = "Transaction was rejected in your wallet";
+        }
+      }
+      toast({
+        title: "Purchase Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      setIsProcessing(false);
+      setIsFallbackMode(false);
     }
   };
 
@@ -847,6 +891,17 @@ export function MarketBuyInterface({
         refetchAllowance().then(() => {
           setBuyingStep("confirm");
           setIsProcessing(false);
+
+          // If we're in fallback mode and just completed approval,
+          // automatically trigger the purchase
+          if (isFallbackMode) {
+            console.log(
+              "Fallback mode: automatically triggering purchase after approval"
+            );
+            setTimeout(() => {
+              handleFallbackPurchase();
+            }, 500); // Small delay to ensure state updates
+          }
         });
       } else if (buyingStep === "confirm") {
         toast({
@@ -858,6 +913,11 @@ export function MarketBuyInterface({
         refetchBalance().then(() => {
           setBuyingStep("purchaseSuccess");
           setIsProcessing(false);
+
+          // Reset fallback mode after successful purchase
+          if (isFallbackMode) {
+            setIsFallbackMode(false);
+          }
         });
       }
     }
@@ -884,6 +944,8 @@ export function MarketBuyInterface({
     refetchBalance,
     amount,
     tokenSymbol,
+    isFallbackMode,
+    handleFallbackPurchase,
   ]);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
