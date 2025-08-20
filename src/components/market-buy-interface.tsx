@@ -19,7 +19,7 @@ import {
   tokenAddress,
   tokenAbi,
 } from "@/constants/contract";
-import { formatUnits, encodeFunctionData } from "viem";
+import { encodeFunctionData } from "viem";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -105,30 +105,20 @@ export function MarketBuyInterface({
   const [lastProcessedHash, setLastProcessedHash] = useState<string | null>(
     null
   );
-  const [batchTimeout, setBatchTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [isFallbackMode, setIsFallbackMode] = useState(false);
-
-  // Clear timeout when component unmounts or transaction completes
-  useEffect(() => {
-    return () => {
-      if (batchTimeout) {
-        clearTimeout(batchTimeout);
-      }
-    };
-  }, [batchTimeout]);
   // const [batchingFailed, setBatchingFailed] = useState(false);
-  const { sendCalls, data: callsData } = useSendCalls({
+  const {
+    sendCalls,
+    data: callsData,
+    isSuccess: callsSuccess,
+    isPending: callsPending,
+    isError: callsError,
+    error: callsErrorMsg,
+  } = useSendCalls({
     mutation: {
       onSuccess: (data) => {
         console.log("=== BATCH TRANSACTION CALLBACK ===");
         console.log("Batch transaction submitted with id:", data.id);
         console.log("Batch capabilities:", data.capabilities);
-
-        // Clear timeout since batch transaction was submitted successfully
-        if (batchTimeout) {
-          clearTimeout(batchTimeout);
-          setBatchTimeout(null);
-        }
 
         toast({
           title: "Batch Transaction Submitted",
@@ -138,20 +128,18 @@ export function MarketBuyInterface({
       },
       onError: (err) => {
         console.error("=== BATCH TRANSACTION SUBMISSION FAILED ===");
+        console.error(
+          "This means useSendCalls failed before wallet interaction"
+        );
         console.error("Error message:", err.message);
+        console.error("Error cause:", err.cause);
+        console.error("Error name:", err.name);
         console.error("Full error object:", err);
-
-        // Clear timeout since we're handling the error
-        if (batchTimeout) {
-          clearTimeout(batchTimeout);
-          setBatchTimeout(null);
-        }
 
         // Check if it's a wallet capability issue
         if (
           err.message?.includes("wallet_sendCalls") ||
-          err.message?.includes("not supported") ||
-          err.message?.includes("Method not found")
+          err.message?.includes("not supported")
         ) {
           toast({
             title: "Batch Transactions Not Supported",
@@ -170,13 +158,20 @@ export function MarketBuyInterface({
           });
         }
 
-        // Fallback to sequential transactions using the helper function
-        if (amount && tokenDecimals) {
-          const amountInUnits = toUnits(amount, tokenDecimals);
-          handleFallbackTransaction(amountInUnits);
+        // Fallback to sequential transactions
+        const amountInUnits = toUnits(amount, tokenDecimals);
+        const needsApproval = amountInUnits > userAllowance;
+        if (needsApproval) {
+          setBuyingStep("allowance");
         } else {
-          setIsProcessing(false);
+          writeContractAsync({
+            address: contractAddress,
+            abi: contractAbi,
+            functionName: "buyShares",
+            args: [BigInt(marketId), selectedOption === "A", amountInUnits],
+          });
         }
+        setIsProcessing(false);
       },
     },
   });
@@ -188,13 +183,11 @@ export function MarketBuyInterface({
     isSuccess: callsStatusSuccess,
     isError: callsStatusError,
     error: callsStatusErrorMsg,
-    isPending: callsPending,
   } = useWaitForCallsStatus({
     id: callsData?.id as `0x${string}`,
     query: {
-      enabled: false, // DISABLED FOR DEBUG MODE - we're not using batch transactions
-      refetchInterval: 2000, // Check every 2 seconds
-      refetchIntervalInBackground: false,
+      enabled: !!callsData?.id,
+      refetchInterval: 1000, // Check every second
     },
   });
 
@@ -295,12 +288,6 @@ export function MarketBuyInterface({
       console.log("Calls status data:", callsStatusData);
       console.log("Status:", callsStatusData.status);
       console.log("Receipts:", callsStatusData.receipts);
-
-      // Clear timeout since we have a status update
-      if (batchTimeout) {
-        clearTimeout(batchTimeout);
-        setBatchTimeout(null);
-      }
 
       if (callsStatusData.status === "success") {
         const receipts = callsStatusData.receipts;
@@ -522,19 +509,12 @@ export function MarketBuyInterface({
   ]);
 
   const checkApproval = async () => {
-    console.log("=== CHECK APPROVAL CALLED ===");
-    console.log("Next button clicked - validating amount");
-
     const numAmount = Number(amount);
-    console.log("Amount to validate:", amount, "parsed as:", numAmount);
-
     if (!amount || numAmount <= 0) {
-      console.log("❌ Amount validation failed - empty or zero");
       setError("Amount must be greater than 0");
       return;
     }
     if (numAmount > MAX_BET) {
-      console.log("❌ Amount exceeds maximum bet:", MAX_BET);
       toast({
         title: "Maximum Bet Exceeded",
         description: `Maximum shares you can buy is ${MAX_BET} ${tokenSymbol}`,
@@ -545,7 +525,6 @@ export function MarketBuyInterface({
 
     try {
       if (!isConnected || !accountAddress) {
-        console.log("❌ Wallet not connected");
         toast({
           title: "Wallet Connection Required",
           description: "Please connect your wallet to continue",
@@ -555,11 +534,7 @@ export function MarketBuyInterface({
       }
 
       const amountInUnits = toUnits(amount, tokenDecimals);
-      console.log("Amount in units:", amountInUnits.toString());
-      console.log("User balance:", balance.toString());
-
       if (amountInUnits > balance) {
-        console.log("❌ Insufficient balance");
         toast({
           title: "Insufficient Balance",
           description: `You have ${(
@@ -569,16 +544,6 @@ export function MarketBuyInterface({
         });
         return;
       }
-
-      console.log("✅ All validations passed - proceeding to confirm step");
-      console.log("Setting buyingStep to 'confirm'");
-      console.log("Current state before setting confirm:");
-      console.log("- isProcessing:", isProcessing);
-      console.log("- isWritePending:", isWritePending);
-      console.log("- isConfirmingTx:", isConfirmingTx);
-      console.log("- callsPending:", callsPending);
-      console.log("- callsData:", callsData);
-      console.log("- callsData?.id:", callsData?.id);
 
       // Proceed directly to the confirmation step
       setBuyingStep("confirm");
@@ -594,9 +559,7 @@ export function MarketBuyInterface({
   };
 
   const handleSetApproval = async () => {
-    console.log("=== HANDLE SET APPROVAL ===");
     if (!isConnected || !accountAddress) {
-      console.log("❌ Wallet not connected");
       toast({
         title: "Wallet Connection Required",
         description: "Please connect your wallet to continue",
@@ -605,19 +568,10 @@ export function MarketBuyInterface({
       return;
     }
 
-    console.log("Setting processing state and preparing approval...");
     setIsProcessing(true);
     try {
       const amountInUnits = toUnits(amount, tokenDecimals);
 
-      console.log("Approval details:");
-      console.log("- Token address:", tokenAddress);
-      console.log("- Contract address:", contractAddress);
-      console.log("- Amount in units:", amountInUnits.toString());
-      console.log("- Amount string:", amount);
-      console.log("- Token decimals:", tokenDecimals);
-
-      console.log("🚀 Calling writeContractAsync for approval...");
       // Only approve the exact amount needed (no more unlimited approvals)
       await writeContractAsync({
         address: tokenAddress,
@@ -625,7 +579,6 @@ export function MarketBuyInterface({
         functionName: "approve",
         args: [contractAddress, amountInUnits], // Exact amount only
       });
-      console.log("✅ Approval writeContractAsync completed");
 
       // Don't show toast here - let the useEffect handle it after confirmation
     } catch (error: unknown) {
@@ -653,17 +606,12 @@ export function MarketBuyInterface({
   };
 
   const handleConfirm = async () => {
-    console.log("=== HANDLE CONFIRM CALLED ===");
-    console.log("Button clicked - starting purchase process");
-
     if (!selectedOption || !amount || Number(amount) <= 0) {
-      console.log("❌ Validation failed - missing option or amount");
       setError("Must select an option and enter an amount greater than 0");
       return;
     }
 
     if (!isConnected || !accountAddress) {
-      console.log("❌ Wallet not connected");
       toast({
         title: "Wallet Connection Required",
         description: "Please connect your wallet to continue",
@@ -674,7 +622,6 @@ export function MarketBuyInterface({
 
     const numAmount = Number(amount);
     if (numAmount > MAX_BET) {
-      console.log("❌ Amount exceeds maximum bet");
       toast({
         title: "Maximum Bet Exceeded",
         description: `Maximum shares you can buy is ${MAX_BET} ${tokenSymbol}`,
@@ -683,188 +630,67 @@ export function MarketBuyInterface({
       return;
     }
 
-    console.log("✅ All validations passed - proceeding with purchase");
     setIsProcessing(true);
-
-    const amountInUnits = toUnits(amount, tokenDecimals);
-
-    console.log("=== BATCH TRANSACTION DEBUG ===");
-    console.log("Amount in units:", amountInUnits.toString());
-    console.log("Market ID:", marketId);
-    console.log("Selected option A:", selectedOption === "A");
-    console.log("Balance before batch:", balance.toString());
-    console.log("Current allowance:", userAllowance.toString());
-    console.log("Is Farcaster connector:", isFarcasterConnector);
-    console.log("Account address:", accountAddress);
-    console.log("Token address:", tokenAddress);
-    console.log("Contract address:", contractAddress);
-    console.log("Connector client:", connectorClient);
-    console.log("sendCalls available:", !!sendCalls);
-
-    // TEMPORARY DEBUG: Force fallback to test if V1 contract works with regular transactions
-    if (true) {
-      // Change to false to test batch transactions again
-      console.warn(
-        "🚨 DEBUG MODE: Forcing fallback to test V1 contract with regular transactions"
-      );
-      handleFallbackTransaction(amountInUnits);
-      return;
-    }
-
-    /* COMMENTED OUT FOR DEBUGGING - UNREACHABLE CODE
-    // Prepare batch calls without explicit value fields
-    const batchCalls = [
-      {
-        to: tokenAddress,
-        data: encodeFunctionData({
-          abi: tokenAbi,
-          functionName: "approve",
-          args: [contractAddress, amountInUnits],
-        }),
-      },
-      {
-        to: contractAddress,
-        data: encodeFunctionData({
-          abi: contractAbi,
-          functionName: "buyShares",
-          args: [BigInt(marketId), selectedOption === "A", amountInUnits],
-        }),
-      },
-    ];
-
-    console.log("Batch calls prepared:", batchCalls);
-    console.log("Approve call data:", batchCalls[0].data);
-    console.log("BuyShares call data:", batchCalls[1].data);
-    console.log("sendCalls function:", typeof sendCalls);
-
-    // Check if we can use EIP-5792 batch transactions
-    if (isFarcasterConnector) {
-      console.log("🔗 Using Farcaster wallet with EIP-5792 batch transactions");
-      // Try the batch transaction with Farcaster-specific capabilities
-      try {
-        const result = sendCalls({
-          calls: batchCalls,
-          capabilities: {
-            atomicity: false, // Farcaster doesn't support atomic transactions
-          },
-        });
-        console.log("sendCalls result (Farcaster):", result);
-
-        // Set timeout for batch transaction (10 seconds)
-        const timeoutId = setTimeout(() => {
-          console.warn("Batch transaction timeout - forcing fallback");
-          toast({
-            title: "Transaction Timeout",
-            description:
-              "Batch transaction is taking too long. Switching to individual transactions.",
-            variant: "destructive",
-          });
-          handleFallbackTransaction(amountInUnits);
-        }, 10000);
-        setBatchTimeout(timeoutId);
-      } catch (syncError) {
-        console.error(
-          "Synchronous error calling sendCalls (Farcaster):",
-          syncError
-        );
-        // Immediate fallback for sync errors
-        handleFallbackTransaction(amountInUnits);
-      }
-    } else {
-      console.log("🔗 Using standard wallet with EIP-5792 batch transactions");
-      // Try the batch transaction without capabilities
-      try {
-        const result = sendCalls({
-          calls: batchCalls,
-        });
-        console.log("sendCalls result (standard):", result);
-
-        // Set timeout for batch transaction (10 seconds)
-        const timeoutId = setTimeout(() => {
-          console.warn("Batch transaction timeout - forcing fallback");
-          toast({
-            title: "Transaction Timeout",
-            description:
-              "Batch transaction is taking too long. Switching to individual transactions.",
-            variant: "destructive",
-          });
-          handleFallbackTransaction(amountInUnits);
-        }, 10000);
-        setBatchTimeout(timeoutId);
-      } catch (syncError) {
-        console.error(
-          "Synchronous error calling sendCalls (standard):",
-          syncError
-        );
-        // Immediate fallback for sync errors
-        handleFallbackTransaction(amountInUnits);
-      }
-    }
-
-    // Note: Async errors will be handled by useSendCalls onError callback
-    */
-  };
-
-  const handleFallbackTransaction = async (amountInUnits: bigint) => {
-    console.log("Starting fallback transaction");
-    setIsFallbackMode(true);
-
     try {
-      const needsApproval = amountInUnits > userAllowance;
+      const amountInUnits = toUnits(amount, tokenDecimals);
 
-      if (needsApproval) {
-        console.log("=== FALLBACK APPROVAL TRANSACTION ===");
-        console.log("Starting sequential approval first");
-        console.log("Token address:", tokenAddress);
-        console.log("Contract address:", contractAddress);
-        console.log("Amount to approve:", amountInUnits.toString());
-        console.log("Current allowance:", userAllowance.toString());
+      console.log("=== BATCH TRANSACTION DEBUG ===");
+      console.log("Amount in units:", amountInUnits.toString());
+      console.log("Market ID:", marketId);
+      console.log("Selected option A:", selectedOption === "A");
+      console.log("Balance before batch:", balance.toString());
+      console.log("Current allowance:", userAllowance.toString());
+      console.log("Is Farcaster connector:", isFarcasterConnector);
 
-        setBuyingStep("allowance");
+      // Prepare batch calls without explicit value fields
+      const batchCalls = [
+        {
+          to: tokenAddress,
+          data: encodeFunctionData({
+            abi: tokenAbi,
+            functionName: "approve",
+            args: [contractAddress, amountInUnits],
+          }),
+        },
+        {
+          to: contractAddress,
+          data: encodeFunctionData({
+            abi: contractAbi,
+            functionName: "buyShares",
+            args: [BigInt(marketId), selectedOption === "A", amountInUnits],
+          }),
+        },
+      ];
 
-        console.log("🚀 Calling writeContractAsync for approval...");
-        await writeContractAsync({
-          address: tokenAddress,
-          abi: tokenAbi,
-          functionName: "approve",
-          args: [contractAddress, amountInUnits],
-        });
-        console.log("✅ Approval writeContractAsync completed");
-        // Approval transaction will be confirmed by useEffect
-        // which will then trigger handleFallbackPurchase
+      console.log("Batch calls prepared:", batchCalls);
+      console.log("Approve call data:", batchCalls[0].data);
+      console.log("BuyShares call data:", batchCalls[1].data);
+
+      // Check if we can use EIP-5792 batch transactions
+      if (isFarcasterConnector) {
+        console.log(
+          "🔗 Using Farcaster wallet with EIP-5792 batch transactions"
+        );
       } else {
-        console.log("=== FALLBACK PURCHASE TRANSACTION ===");
-        console.log("Starting direct purchase (already approved)");
-        console.log("Contract address:", contractAddress);
-        console.log("Market ID:", marketId);
-        console.log("Selected option A:", selectedOption === "A");
-        console.log("Amount in units:", amountInUnits.toString());
-
-        setBuyingStep("confirm");
-
-        console.log("🚀 Calling writeContractAsync for purchase...");
-        await writeContractAsync({
-          address: contractAddress,
-          abi: contractAbi,
-          functionName: "buyShares",
-          args: [BigInt(marketId), selectedOption === "A", amountInUnits],
-        });
-        console.log("✅ Purchase writeContractAsync completed");
-        // Purchase transaction will be confirmed by useEffect
+        console.log(
+          "🔗 Using standard wallet with EIP-5792 batch transactions"
+        );
       }
-    } catch (fallbackError) {
-      console.error("Fallback transaction also failed:", fallbackError);
+
+      // Try the batch transaction
+      sendCalls({
+        calls: batchCalls,
+      });
+    } catch (error: unknown) {
+      console.error("Purchase error:", error);
       let errorMessage = "Failed to process purchase. Check your wallet.";
-      if (fallbackError instanceof Error) {
-        errorMessage =
-          (fallbackError as BaseError)?.shortMessage || errorMessage;
-        if (fallbackError.message.includes("user rejected")) {
+      if (error instanceof Error) {
+        errorMessage = (error as BaseError)?.shortMessage || errorMessage;
+        if (error.message.includes("user rejected")) {
           errorMessage = "Transaction was rejected in your wallet";
-        } else if (
-          fallbackError.message.includes("Market trading period has ended")
-        ) {
+        } else if (error.message.includes("Market trading period has ended")) {
           errorMessage = "Market trading period has ended";
-        } else if (fallbackError.message.includes("insufficient funds")) {
+        } else if (error.message.includes("insufficient funds")) {
           errorMessage = "Insufficient funds for gas";
         }
       }
@@ -874,55 +700,6 @@ export function MarketBuyInterface({
         variant: "destructive",
       });
       setIsProcessing(false);
-      setIsFallbackMode(false);
-    }
-  };
-
-  // Separate function to handle the purchase step in fallback mode
-  const handleFallbackPurchase = async () => {
-    console.log("=== FALLBACK PURCHASE AFTER APPROVAL ===");
-    console.log("Starting fallback purchase after approval");
-
-    try {
-      setBuyingStep("confirm");
-      setIsProcessing(true);
-
-      const amountInUnits = toUnits(amount, tokenDecimals);
-
-      console.log("Purchase details:");
-      console.log("- Contract address:", contractAddress);
-      console.log("- Market ID:", marketId);
-      console.log("- Selected option A:", selectedOption === "A");
-      console.log("- Amount in units:", amountInUnits.toString());
-      console.log("- Amount string:", amount);
-      console.log("- Token decimals:", tokenDecimals);
-
-      console.log("🚀 Calling writeContractAsync for fallback purchase...");
-      await writeContractAsync({
-        address: contractAddress,
-        abi: contractAbi,
-        functionName: "buyShares",
-        args: [BigInt(marketId), selectedOption === "A", amountInUnits],
-      });
-      console.log("✅ Fallback purchase writeContractAsync completed");
-      // Purchase transaction will be confirmed by useEffect
-    } catch (purchaseError) {
-      console.error("Fallback purchase failed:", purchaseError);
-      let errorMessage = "Failed to complete purchase. Check your wallet.";
-      if (purchaseError instanceof Error) {
-        errorMessage =
-          (purchaseError as BaseError)?.shortMessage || errorMessage;
-        if (purchaseError.message.includes("user rejected")) {
-          errorMessage = "Transaction was rejected in your wallet";
-        }
-      }
-      toast({
-        title: "Purchase Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      setIsProcessing(false);
-      setIsFallbackMode(false);
     }
   };
 
@@ -963,17 +740,6 @@ export function MarketBuyInterface({
         refetchAllowance().then(() => {
           setBuyingStep("confirm");
           setIsProcessing(false);
-
-          // If we're in fallback mode and just completed approval,
-          // automatically trigger the purchase
-          if (isFallbackMode) {
-            console.log(
-              "Fallback mode: automatically triggering purchase after approval"
-            );
-            setTimeout(() => {
-              handleFallbackPurchase();
-            }, 500); // Small delay to ensure state updates
-          }
         });
       } else if (buyingStep === "confirm") {
         toast({
@@ -985,11 +751,6 @@ export function MarketBuyInterface({
         refetchBalance().then(() => {
           setBuyingStep("purchaseSuccess");
           setIsProcessing(false);
-
-          // Reset fallback mode after successful purchase
-          if (isFallbackMode) {
-            setIsFallbackMode(false);
-          }
         });
       }
     }
@@ -1016,8 +777,6 @@ export function MarketBuyInterface({
     refetchBalance,
     amount,
     tokenSymbol,
-    isFallbackMode,
-    handleFallbackPurchase,
   ]);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
