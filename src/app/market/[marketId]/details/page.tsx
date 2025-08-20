@@ -46,29 +46,7 @@ interface Props {
 async function fetchMarketData(marketId: string, publicClient: any) {
   const marketIdBigInt = BigInt(marketId);
 
-  // Try V2 first (newer contract)
-  try {
-    const v2MarketData = (await publicClient.readContract({
-      address: V2contractAddress,
-      abi: V2contractAbi,
-      functionName: "getMarketInfo",
-      args: [marketIdBigInt],
-    })) as MarketInfoV2ContractReturn;
-
-    // If successful and market exists, return V2 data
-    if (v2MarketData[0]) {
-      // question exists
-      return {
-        version: "v2" as const,
-        data: v2MarketData,
-      };
-    }
-  } catch (error) {
-    // V2 market doesn't exist, try V1
-    console.log(`Market ${marketId} not found in V2, trying V1...`);
-  }
-
-  // Try V1
+  // Try V1 first (V1 markets have lower IDs)
   try {
     const v1MarketData = (await publicClient.readContract({
       address: contract.address,
@@ -86,7 +64,29 @@ async function fetchMarketData(marketId: string, publicClient: any) {
       };
     }
   } catch (error) {
-    console.log(`Market ${marketId} not found in V1 either`);
+    // V1 market doesn't exist, try V2
+    console.log(`Market ${marketId} not found in V1, trying V2...`);
+  }
+
+  // Try V2
+  try {
+    const v2MarketData = (await publicClient.readContract({
+      address: V2contractAddress,
+      abi: V2contractAbi,
+      functionName: "getMarketInfo",
+      args: [marketIdBigInt],
+    })) as MarketInfoV2ContractReturn;
+
+    // If successful and market exists, return V2 data
+    if (v2MarketData[0]) {
+      // question exists
+      return {
+        version: "v2" as const,
+        data: v2MarketData,
+      };
+    }
+  } catch (error) {
+    console.log(`Market ${marketId} not found in V2 either`);
   }
 
   throw new Error(`Market ${marketId} not found in either V1 or V2 contracts`);
