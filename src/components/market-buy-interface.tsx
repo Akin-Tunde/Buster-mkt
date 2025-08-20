@@ -192,7 +192,7 @@ export function MarketBuyInterface({
   } = useWaitForCallsStatus({
     id: callsData?.id as `0x${string}`,
     query: {
-      enabled: !!callsData?.id,
+      enabled: false, // DISABLED FOR DEBUG MODE - we're not using batch transactions
       refetchInterval: 2000, // Check every 2 seconds
       refetchIntervalInBackground: false,
     },
@@ -577,6 +577,8 @@ export function MarketBuyInterface({
       console.log("- isWritePending:", isWritePending);
       console.log("- isConfirmingTx:", isConfirmingTx);
       console.log("- callsPending:", callsPending);
+      console.log("- callsData:", callsData);
+      console.log("- callsData?.id:", callsData?.id);
 
       // Proceed directly to the confirmation step
       setBuyingStep("confirm");
