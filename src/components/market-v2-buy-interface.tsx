@@ -71,10 +71,16 @@ export function MarketV2BuyInterface({
   });
   const { toast } = useToast();
 
-  // Check if we're using Farcaster connector {fix this next}
+  // Check if we're using Farcaster connector
   const isFarcasterConnector =
     connector?.id === "miniAppConnector" ||
     connector?.name?.includes("Farcaster");
+
+  // Check if wallet supports batch transactions (EIP-5792)
+  const supportseBatchTransactions =
+    isFarcasterConnector &&
+    !connector?.name?.includes("MetaMask") &&
+    !connector?.id?.includes("metaMask");
 
   const [isBuying, setIsBuying] = useState(false);
   const [containerHeight, setContainerHeight] = useState("auto");
@@ -201,6 +207,14 @@ export function MarketV2BuyInterface({
     query: { enabled: selectedOptionId !== null },
   });
 
+  // Fetch market info for validation
+  const { data: marketInfo } = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketInfo",
+    args: [BigInt(marketId)],
+  });
+
   // Calculate slippage protection (5% slippage tolerance)
   const calculateMaxPrice = useCallback((currentPrice: bigint): bigint => {
     return (currentPrice * 105n) / 100n; // 5% slippage
@@ -217,24 +231,35 @@ export function MarketV2BuyInterface({
       return;
     try {
       const amountInUnits = toUnits(amount, tokenDecimals);
-      if (userBalance === undefined || amountInUnits > userBalance)
-        throw new Error("Insufficient balance");
+
+      // Check balance
+      if (!userBalance) {
+        throw new Error("Unable to fetch balance. Please try again.");
+      }
+
+      if (amountInUnits > userBalance) {
+        throw new Error(
+          `Insufficient balance. You have ${formatPrice(
+            userBalance,
+            tokenDecimals
+          )} ${tokenSymbol || "tokens"}`
+        );
+      }
+
       const currentPrice = optionData?.[4] || 0n;
       const maxPricePerShare = calculateMaxPrice(currentPrice);
-      const gasEstimate = await publicClient.estimateGas({
-        account: accountAddress,
-        to: V2contractAddress,
-        data: encodeFunctionData({
-          abi: V2contractAbi,
-          functionName: "buyShares",
-          args: [
-            BigInt(marketId),
-            BigInt(selectedOptionId),
-            amountInUnits,
-            maxPricePerShare,
-          ],
-        }),
-      });
+
+      console.log("=== V2 DIRECT PURCHASE ===");
+      console.log("Market ID:", marketId);
+      console.log("Option ID:", selectedOptionId);
+      console.log("Amount:", amountInUnits.toString());
+      console.log("Max Price:", maxPricePerShare.toString());
+      console.log("Option Data:", optionData);
+      console.log("Current Price from option data:", currentPrice.toString());
+      console.log("Market object:", market);
+      console.log("V2 Contract Address:", V2contractAddress);
+      console.log("Account Address:", accountAddress);
+
       await writeContractAsync({
         address: V2contractAddress,
         abi: V2contractAbi,
@@ -245,20 +270,35 @@ export function MarketV2BuyInterface({
           amountInUnits,
           maxPricePerShare,
         ],
-        gas: (gasEstimate * 12n) / 10n,
       });
     } catch (err: unknown) {
       const causeData =
         err instanceof BaseError ? (err.cause as any)?.data : undefined;
-      const errorMessage =
-        causeData && typeof causeData === "string"
-          ? decodeErrorResult({
-              abi: V2contractAbi,
-              data: causeData as `0x${string}`,
-            }).errorName
-          : (err as BaseError)?.shortMessage ||
+
+      let errorMessage = "Transaction failed";
+
+      if (causeData && typeof causeData === "string") {
+        try {
+          const decodedError = decodeErrorResult({
+            abi: V2contractAbi,
+            data: causeData as `0x${string}`,
+          });
+          errorMessage = decodedError.errorName || "Contract error";
+        } catch {
+          // Fallback if error decoding fails
+          errorMessage =
+            (err as BaseError)?.shortMessage ||
             (err as Error)?.message ||
             "Transaction failed";
+        }
+      } else {
+        errorMessage =
+          (err as BaseError)?.shortMessage ||
+          (err as Error)?.message ||
+          "Transaction failed";
+      }
+
+      console.error("Direct purchase failed:", err);
       toast({
         title: "Purchase Failed",
         description: errorMessage,
@@ -293,10 +333,31 @@ export function MarketV2BuyInterface({
     try {
       setIsProcessing(true);
       const amountInUnits = toUnits(amount, tokenDecimals);
+
+      // Check balance
+      if (!userBalance) {
+        throw new Error("Unable to fetch balance. Please try again.");
+      }
+
+      if (amountInUnits > userBalance) {
+        throw new Error(
+          `Insufficient balance. You have ${formatPrice(
+            userBalance,
+            tokenDecimals
+          )} ${tokenSymbol || "tokens"}`
+        );
+      }
+
       const needsApproval = amountInUnits > (userAllowance || 0n);
+
+      console.log("=== V2 SEQUENTIAL PURCHASE ===");
+      console.log("Amount in units:", amountInUnits.toString());
+      console.log("Needs approval:", needsApproval);
+      console.log("Current allowance:", userAllowance?.toString());
 
       if (needsApproval) {
         setBuyingStep("allowance");
+        console.log("Approving tokens...");
         // First approve
         await writeContractAsync({
           address: tokenAddress,
@@ -305,9 +366,14 @@ export function MarketV2BuyInterface({
           args: [V2contractAddress, amountInUnits],
         });
       } else {
+        setBuyingStep("confirm");
         // Direct purchase
         const currentPrice = optionData?.[4] || 0n; // currentPrice from getMarketOption
         const maxPricePerShare = calculateMaxPrice(currentPrice);
+
+        console.log("Making direct purchase...");
+        console.log("Current price:", currentPrice.toString());
+        console.log("Max price per share:", maxPricePerShare.toString());
 
         await writeContractAsync({
           address: V2contractAddress,
@@ -368,10 +434,34 @@ export function MarketV2BuyInterface({
     try {
       setIsProcessing(true);
       const amountInUnits = toUnits(amount, tokenDecimals);
-      if (userBalance === undefined || amountInUnits > userBalance)
-        throw new Error("Insufficient balance");
+
+      // Check balance
+      if (!userBalance) {
+        throw new Error("Unable to fetch balance. Please try again.");
+      }
+
+      if (amountInUnits > userBalance) {
+        throw new Error(
+          `Insufficient balance. You have ${formatPrice(
+            userBalance,
+            tokenDecimals
+          )} ${tokenSymbol || "tokens"}`
+        );
+      }
+
       const currentPrice = optionData?.[4] || 0n;
       const maxPricePerShare = calculateMaxPrice(currentPrice);
+
+      console.log("=== V2 BATCH TRANSACTION DEBUG ===");
+      console.log("Amount in units:", amountInUnits.toString());
+      console.log("Market ID:", marketId);
+      console.log("Selected option ID:", selectedOptionId);
+      console.log("Balance before batch:", userBalance?.toString());
+      console.log("Current allowance:", userAllowance?.toString());
+      console.log("Is Farcaster connector:", isFarcasterConnector);
+      console.log("Current price:", currentPrice.toString());
+      console.log("Max price per share:", maxPricePerShare.toString());
+
       const batchCalls = [
         {
           to: tokenAddress,
@@ -395,9 +485,24 @@ export function MarketV2BuyInterface({
           }),
         },
       ];
+
+      console.log("V2 Batch calls prepared:", batchCalls);
+
       await sendCalls({ calls: batchCalls });
     } catch (err) {
       console.error("Batch purchase preparation failed:", err);
+
+      let errorMessage = "Batch transaction failed";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+
+      toast({
+        title: "Batch Purchase Failed",
+        description: errorMessage + ". Trying sequential purchase...",
+        variant: "destructive",
+      });
+
       handleSequentialPurchase();
     } finally {
       setIsProcessing(false);
@@ -435,10 +540,38 @@ export function MarketV2BuyInterface({
       return;
     }
 
+    // Debug log all required data
+    console.log("=== V2 PURCHASE DEBUG ===");
+    console.log("Account:", accountAddress);
+    console.log("Selected option:", selectedOptionId);
+    console.log("Market ID:", marketId);
+    console.log("Token address:", tokenAddress);
+    console.log("V2 contract address:", V2contractAddress);
+    console.log("Token symbol:", tokenSymbol);
+    console.log("Token decimals:", tokenDecimals);
+    console.log("User balance:", userBalance?.toString());
+    console.log("User allowance:", userAllowance?.toString());
+    console.log("Option data:", optionData);
+    console.log("Market info:", marketInfo);
+
     setIsBuying(true);
     setBuyingStep("amount");
     setError(null);
-  }, [isConnected, accountAddress, selectedOptionId, toast]);
+  }, [
+    isConnected,
+    accountAddress,
+    selectedOptionId,
+    marketId,
+    tokenAddress,
+    V2contractAddress,
+    tokenSymbol,
+    tokenDecimals,
+    userBalance,
+    userAllowance,
+    optionData,
+    marketInfo,
+    toast,
+  ]);
 
   // Handle amount confirmation
   const handleConfirmPurchase = useCallback(() => {
@@ -447,18 +580,62 @@ export function MarketV2BuyInterface({
       return;
     }
 
+    // Check balance before proceeding
+    if (!userBalance || !tokenDecimals) {
+      setError("Unable to fetch balance. Please try again.");
+      return;
+    }
+
+    const amountInUnits = toUnits(amount, tokenDecimals);
+    if (amountInUnits > userBalance) {
+      setError(
+        `Insufficient balance. You have ${formatPrice(
+          userBalance,
+          tokenDecimals
+        )} ${tokenSymbol || "tokens"}`
+      );
+      return;
+    }
+
+    // Check if market and option data is available
+    if (!optionData || !marketInfo) {
+      setError("Market or option data not available. Please try again.");
+      return;
+    }
+
+    // Check if option is active (index 5 in the optionData array should be boolean)
+    if (optionData.length > 5 && !optionData[5]) {
+      setError(
+        "Selected option is not active. Please choose a different option."
+      );
+      return;
+    }
+
+    console.log("=== V2 PURCHASE CONFIRMATION ===");
+    console.log("Amount:", amount);
+    console.log("Amount in units:", amountInUnits.toString());
+    console.log("User balance:", userBalance.toString());
+    console.log("Sufficient balance:", amountInUnits <= userBalance);
+    console.log("Connector:", connector?.name, connector?.id);
+    console.log("Supports batch transactions:", supportseBatchTransactions);
+
     setBuyingStep("confirm");
 
-    // Try batch transaction first, fallback to sequential
-    if (isFarcasterConnector || connectorClient?.account) {
+    // Only use batch transactions for wallets that support EIP-5792
+    if (supportseBatchTransactions) {
+      console.log("Using batch transaction method");
       handleBatchPurchase();
     } else {
+      console.log("Using sequential transaction method");
       handleSequentialPurchase();
     }
   }, [
     amount,
-    isFarcasterConnector,
-    connectorClient,
+    userBalance,
+    tokenDecimals,
+    tokenSymbol,
+    connector,
+    supportseBatchTransactions,
     handleBatchPurchase,
     handleSequentialPurchase,
   ]);
