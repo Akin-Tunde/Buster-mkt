@@ -116,32 +116,43 @@ export function MarketDetailsClient({
     isLP: false,
     isFeeCollector: false,
   });
+  const [rolesChecked, setRolesChecked] = useState(false);
+
+  // Reset roles check when marketId changes
+  useEffect(() => {
+    setRolesChecked(false);
+    setUserRoles({
+      isCreator: false,
+      isLP: false,
+      isFeeCollector: false,
+    });
+  }, [marketId]);
 
   // Check user roles for this specific market
   useEffect(() => {
     const checkRoles = async () => {
-      if (market.version === "v2") {
-        const [creatorStatus, lpStatus] = await Promise.all([
-          checkCreatorStatus(Number(marketId)),
-          checkLPStatus(Number(marketId)),
-        ]);
+      if (market.version === "v2" && !rolesChecked) {
+        try {
+          const [creatorStatus, lpStatus] = await Promise.all([
+            checkCreatorStatus(Number(marketId)),
+            checkLPStatus(Number(marketId)),
+          ]);
 
-        setUserRoles({
-          isCreator: creatorStatus,
-          isLP: lpStatus,
-          isFeeCollector,
-        });
+          setUserRoles({
+            isCreator: creatorStatus,
+            isLP: lpStatus,
+            isFeeCollector,
+          });
+          setRolesChecked(true);
+        } catch (error) {
+          console.error("Error checking user roles:", error);
+          setRolesChecked(true); // Still mark as checked to prevent infinite retries
+        }
       }
     };
 
     checkRoles();
-  }, [
-    marketId,
-    market.version,
-    checkCreatorStatus,
-    checkLPStatus,
-    isFeeCollector,
-  ]);
+  }, [marketId, market.version, rolesChecked]); // Removed function dependencies
 
   useEffect(() => {
     const signalReady = async () => {
