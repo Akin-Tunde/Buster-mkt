@@ -7,6 +7,7 @@ import {
   V2contractAbi,
   tokenAddress,
   tokenAbi,
+  publicClient,
 } from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
@@ -78,6 +79,9 @@ export function MarketV2PositionManager({
   );
   const [showZeroPositions, setShowZeroPositions] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [realTimePrices, setRealTimePrices] = useState<Record<number, bigint>>(
+    {}
+  );
 
   // Token information
   const { data: tokenSymbol } = useReadContract({
@@ -104,10 +108,53 @@ export function MarketV2PositionManager({
     query: { enabled: !!accountAddress },
   });
 
+  // Fetch current price for each option directly from contract
+  const fetchOptionPrices = async () => {
+    if (!market.options.length) return;
+
+    const prices: Record<number, bigint> = {};
+
+    for (let optionId = 0; optionId < market.options.length; optionId++) {
+      try {
+        // Use the V3 contract (via V2contractAbi) to get real-time option data
+        const optionData = await publicClient.readContract({
+          address: V2contractAddress,
+          abi: V2contractAbi,
+          functionName: "getMarketOption",
+          args: [BigInt(marketId), BigInt(optionId)],
+        });
+
+        if (optionData && optionData[4]) {
+          // currentPrice is at index 4
+          prices[optionId] = optionData[4] as bigint;
+        } else {
+          // Fallback to market data if contract call fails
+          prices[optionId] = market.options[optionId]?.currentPrice || 0n;
+        }
+      } catch (error) {
+        console.error(`Error fetching price for option ${optionId}:`, error);
+        // Fallback to market data
+        prices[optionId] = market.options[optionId]?.currentPrice || 0n;
+      }
+    }
+
+    setRealTimePrices(prices);
+  };
+
+  useEffect(() => {
+    fetchOptionPrices();
+
+    // Refresh prices every 30 seconds for real-time updates
+    const priceInterval = setInterval(fetchOptionPrices, 30000);
+
+    return () => clearInterval(priceInterval);
+  }, [marketId, market.options]);
+
   // Convert user shares data to position objects with real cost basis
   const positions: UserPosition[] = market.options.map((option, optionId) => {
     const shares = userShares ? userShares[optionId] || 0n : 0n;
-    const currentPrice = option.currentPrice || BigInt(5 * 10 ** 17); // Default to 0.5 if price not available
+    // Use real-time price from contract, fallback to market data
+    const currentPrice = realTimePrices[optionId] || option.currentPrice || 0n;
     const currentValue = (shares * currentPrice) / BigInt(10 ** 18);
 
     // Use real portfolio data from contract
@@ -175,7 +222,13 @@ export function MarketV2PositionManager({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([refetchShares(), refetchPortfolio()]);
+      // Refresh shares, portfolio data, and prices
+      await Promise.all([
+        refetchShares(),
+        refetchPortfolio(),
+        fetchOptionPrices(), // Refresh real-time prices from contract
+      ]);
+
       if (onPositionUpdate) {
         onPositionUpdate();
       }
