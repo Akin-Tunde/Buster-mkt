@@ -209,6 +209,16 @@ export function MarketV2BuyInterface({
     query: { enabled: selectedOptionId !== null },
   });
 
+  // Fetch real-time calculated price for selected option
+  const { data: realTimePrice, refetch: refetchRealTimePrice } =
+    useReadContract({
+      address: V2contractAddress,
+      abi: V2contractAbi,
+      functionName: "calculateCurrentPrice",
+      args: [BigInt(marketId), BigInt(selectedOptionId || 0)],
+      query: { enabled: selectedOptionId !== null },
+    });
+
   // Fetch market info for validation
   const { data: marketInfo } = useReadContract({
     address: V2contractAddress,
@@ -275,19 +285,13 @@ export function MarketV2BuyInterface({
         );
       }
 
-      const currentPrice = optionData?.[4] || 0n;
+      const currentPrice = realTimePrice || optionData?.[4] || 0n;
       const maxPricePerShare = calculateMaxPrice(currentPrice);
 
-      console.log("=== V2 DIRECT PURCHASE ===");
-      console.log("Market ID:", marketId);
-      console.log("Option ID:", selectedOptionId);
-      console.log("Amount:", amountInUnits.toString());
-      console.log("Max Price:", maxPricePerShare.toString());
-      console.log("Option Data:", optionData);
-      console.log("Current Price from option data:", currentPrice.toString());
-      console.log("Market object:", market);
-      console.log("V2 Contract Address:", V2contractAddress);
-      console.log("Account Address:", accountAddress);
+      console.log("=== V2 BATCH PURCHASE ===");
+      console.log("Amount in units:", amountInUnits.toString());
+      console.log("Real-time price:", realTimePrice?.toString());
+      console.log("Current price:", currentPrice.toString());
 
       await writeContractAsync({
         address: V2contractAddress,
@@ -420,10 +424,11 @@ export function MarketV2BuyInterface({
       } else {
         setBuyingStep("confirm");
         // Direct purchase
-        const currentPrice = optionData?.[4] || 0n; // currentPrice from getMarketOption
+        const currentPrice = realTimePrice || optionData?.[4] || 0n; // Use real-time price
         const maxPricePerShare = calculateMaxPrice(currentPrice);
 
         console.log("Making direct purchase...");
+        console.log("Real-time price:", realTimePrice?.toString());
         console.log("Current price:", currentPrice.toString());
         console.log("Max price per share:", maxPricePerShare.toString());
 
@@ -992,7 +997,7 @@ export function MarketV2BuyInterface({
       if (buyingStep === "allowance") {
         // Approval confirmed, now purchase
         setBuyingStep("confirm");
-        const currentPrice = optionData?.[4] || 0n;
+        const currentPrice = realTimePrice || optionData?.[4] || 0n;
         const maxPricePerShare = calculateMaxPrice(currentPrice);
         const amountInUnits = toUnits(amount, tokenDecimals || 18);
 
@@ -1020,6 +1025,7 @@ export function MarketV2BuyInterface({
         setSelectedOptionId(null);
         setIsBuying(false);
         refetchOptionData();
+        refetchRealTimePrice();
       }
     }
   }, [
@@ -1028,6 +1034,7 @@ export function MarketV2BuyInterface({
     lastProcessedHash,
     buyingStep,
     optionData,
+    realTimePrice,
     calculateMaxPrice,
     amount,
     tokenDecimals,
@@ -1156,7 +1163,8 @@ export function MarketV2BuyInterface({
                   <p className="text-xs text-gray-500">
                     Current price:{" "}
                     {formatPrice(
-                      market.options[selectedOptionId!]?.currentPrice
+                      realTimePrice ||
+                        market.options[selectedOptionId!]?.currentPrice
                     )}{" "}
                     {tokenSymbol}
                   </p>
