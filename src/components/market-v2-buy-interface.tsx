@@ -470,22 +470,27 @@ export function MarketV2BuyInterface({
         );
       }
 
-      const needsApproval = amountInUnits > (userAllowance || 0n);
+      // Use estimated cost for approval logic, not share amount
+      const requiredApproval =
+        estimatedCost ||
+        (amountInUnits * (optionData?.[4] || 0n)) / BigInt(1e18);
+      const needsApproval = requiredApproval > (userAllowance || 0n);
 
       console.log("=== V2 SEQUENTIAL PURCHASE ===");
       console.log("Amount in units:", amountInUnits.toString());
+      console.log("Required approval:", requiredApproval.toString());
       console.log("Needs approval:", needsApproval);
       console.log("Current allowance:", userAllowance?.toString());
 
       if (needsApproval) {
         setBuyingStep("allowance");
         console.log("Approving tokens...");
-        // First approve
+        // First approve - approve the estimated cost, not the share amount
         await writeContractAsync({
           address: tokenAddress,
           abi: tokenAbi,
           functionName: "approve",
-          args: [V2contractAddress, amountInUnits],
+          args: [V2contractAddress, requiredApproval],
         });
       } else {
         setBuyingStep("confirm");
@@ -624,13 +629,18 @@ export function MarketV2BuyInterface({
       console.log("Avg price per share:", avgPricePerShare.toString());
       console.log("Max price per share:", maxPricePerShare.toString());
 
+      // Use estimated cost for approval, not the share amount
+      const approvalAmount =
+        estimatedCost || (amountInUnits * avgPricePerShare) / BigInt(1e18);
+      console.log("Approval amount:", approvalAmount.toString());
+
       const batchCalls = [
         {
           to: tokenAddress,
           data: encodeFunctionData({
             abi: tokenAbi,
             functionName: "approve",
-            args: [V2contractAddress, amountInUnits],
+            args: [V2contractAddress, approvalAmount],
           }),
         },
         {
