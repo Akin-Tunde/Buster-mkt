@@ -101,6 +101,16 @@ export function MarketV2BuyInterface({
   const [isVisible, setIsVisible] = useState(true);
   const [isValidated, setIsValidated] = useState<boolean | null>(null); // null = checking, true = validated, false = not validated
 
+  // Reset function to completely reset the buying interface
+  const resetBuyingInterface = useCallback(() => {
+    setSelectedOptionId(null);
+    setAmount("");
+    setBuyingStep("initial");
+    setIsBuying(false);
+    setIsProcessing(false);
+    setError(null);
+  }, []);
+
   // EIP-5792 batch calls
   const {
     sendCalls,
@@ -247,6 +257,18 @@ export function MarketV2BuyInterface({
     abi: V2contractAbi,
     functionName: "getMarketInfo",
     args: [BigInt(marketId)],
+  });
+
+  // Fetch user's current shares for all options in this market
+  const { data: userShares } = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getUserShares",
+    args: [BigInt(marketId), accountAddress as `0x${string}`],
+    query: {
+      enabled: !!accountAddress,
+      refetchInterval: 3000, // Refresh every 3 seconds
+    },
   });
 
   // Calculate slippage protection (10% slippage tolerance)
@@ -693,6 +715,10 @@ export function MarketV2BuyInterface({
     console.log("Token decimals:", tokenDecimals);
     console.log("User balance:", userBalance?.toString());
     console.log("User allowance:", userAllowance?.toString());
+    console.log(
+      "User shares:",
+      userShares?.map((share) => share.toString())
+    );
     console.log("Option data:", optionData);
     console.log("Market info:", marketInfo);
 
@@ -710,6 +736,7 @@ export function MarketV2BuyInterface({
     tokenDecimals,
     userBalance,
     userAllowance,
+    userShares,
     optionData,
     marketInfo,
     toast,
@@ -722,10 +749,25 @@ export function MarketV2BuyInterface({
       return;
     }
 
-    // Check maximum shares limit
+    // Check maximum shares limit per purchase
     if (parseFloat(amount) > MAX_SHARES) {
       setError(`Maximum ${MAX_SHARES} shares allowed per purchase`);
       return;
+    }
+
+    // Check if user already has too many shares for this option
+    if (userShares && selectedOptionId !== null) {
+      const currentShares = Number(userShares[selectedOptionId] || 0n);
+      const newTotalShares = currentShares + parseFloat(amount);
+
+      if (newTotalShares > MAX_SHARES) {
+        setError(
+          `Cannot have more than ${MAX_SHARES} shares per option. You currently have ${currentShares} shares. Maximum additional purchase: ${
+            MAX_SHARES - currentShares
+          } shares.`
+        );
+        return;
+      }
     }
 
     // Check balance before proceeding
@@ -785,6 +827,8 @@ export function MarketV2BuyInterface({
     }
   }, [
     amount,
+    selectedOptionId,
+    userShares,
     userBalance,
     tokenDecimals,
     tokenSymbol,
@@ -827,7 +871,6 @@ export function MarketV2BuyInterface({
             console.log("✅ V2 Both transactions successful");
             setBuyingStep("purchaseSuccess");
             setAmount("");
-            setSelectedOptionId(null);
 
             toast({
               title: "Purchase Successful!",
@@ -875,7 +918,6 @@ export function MarketV2BuyInterface({
             );
             setBuyingStep("purchaseSuccess");
             setAmount("");
-            setSelectedOptionId(null);
             toast({
               title: "Purchase Successful!",
               description: `Successfully bought shares in ${
@@ -901,7 +943,6 @@ export function MarketV2BuyInterface({
             console.log("✅ V2 All receipts successful!");
             setBuyingStep("purchaseSuccess");
             setAmount("");
-            setSelectedOptionId(null);
             toast({
               title: "Purchase Successful!",
               description: `Successfully bought shares in ${
@@ -919,7 +960,6 @@ export function MarketV2BuyInterface({
           console.log("Assuming success since batch status is 'success'");
           setBuyingStep("purchaseSuccess");
           setAmount("");
-          setSelectedOptionId(null);
           toast({
             title: "Purchase Successful!",
             description: `Successfully bought shares in ${
@@ -1104,7 +1144,6 @@ export function MarketV2BuyInterface({
           }`,
         });
         setAmount("");
-        setSelectedOptionId(null);
         setIsBuying(false);
         refetchOptionData();
         refetchEstimatedCost();
@@ -1196,11 +1235,10 @@ export function MarketV2BuyInterface({
                     onClick={() => {
                       setSelectedOptionId(index);
                       // Reset buying state when selecting a new option
-                      if (buyingStep !== "initial") {
-                        setBuyingStep("initial");
-                        setIsBuying(false);
-                        setAmount("");
-                        setError(null);
+                      if (buyingStep !== "initial" || isBuying) {
+                        resetBuyingInterface();
+                        // Then set the new option after reset
+                        setTimeout(() => setSelectedOptionId(index), 0);
                       }
                     }}
                     className={cn(
@@ -1283,14 +1321,36 @@ export function MarketV2BuyInterface({
                       }
 
                       const numValue = parseFloat(value);
-                      // Check for maximum shares limit
+
+                      // Check for maximum shares limit per purchase
                       if (numValue > MAX_SHARES) {
-                        setError(`Maximum ${MAX_SHARES} shares allowed`);
+                        setError(
+                          `Maximum ${MAX_SHARES} shares allowed per purchase`
+                        );
                         setAmount(value); // Still allow typing to show the error
-                      } else {
-                        setError(null);
-                        setAmount(value);
+                        return;
                       }
+
+                      // Check combined shares limit (current + new)
+                      if (userShares && selectedOptionId !== null) {
+                        const currentShares = Number(
+                          userShares[selectedOptionId] || 0n
+                        );
+                        const newTotal = currentShares + numValue;
+
+                        if (newTotal > MAX_SHARES) {
+                          setError(
+                            `Total shares cannot exceed ${MAX_SHARES}. You have ${currentShares} shares. Max additional: ${
+                              MAX_SHARES - currentShares
+                            }`
+                          );
+                          setAmount(value);
+                          return;
+                        }
+                      }
+
+                      setError(null);
+                      setAmount(value);
                     }}
                     max={MAX_SHARES}
                     className="w-full"
@@ -1302,6 +1362,12 @@ export function MarketV2BuyInterface({
                         {tokenSymbol}
                       </p>
                       <p>Maximum shares per purchase: {MAX_SHARES}</p>
+                      {userShares && selectedOptionId !== null && (
+                        <p>
+                          Current shares for this option:{" "}
+                          {Number(userShares[selectedOptionId] || 0n)}
+                        </p>
+                      )}
                     </div>
                   )}
                   {estimatedCost && amount && parseFloat(amount) > 0 && (
@@ -1400,13 +1466,7 @@ export function MarketV2BuyInterface({
                 <p className="text-sm text-green-600 font-medium">
                   Purchase successful!
                 </p>
-                <Button
-                  onClick={() => {
-                    setIsBuying(false);
-                    setBuyingStep("initial");
-                  }}
-                  className="w-full"
-                >
+                <Button onClick={resetBuyingInterface} className="w-full">
                   Buy More
                 </Button>
               </div>
