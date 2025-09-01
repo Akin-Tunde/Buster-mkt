@@ -1365,7 +1365,7 @@ export function MarketV2BuyInterface({
                       {userShares && selectedOptionId !== null && (
                         <p>
                           Current shares for this option:{" "}
-                          {Number(userShares[selectedOptionId] || 0n)}
+                          {formatPrice(userShares[selectedOptionId] || 0n, 18)}
                         </p>
                       )}
                     </div>
