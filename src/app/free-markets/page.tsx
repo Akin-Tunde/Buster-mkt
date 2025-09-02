@@ -140,7 +140,9 @@ export default function FreeMarketsPage() {
                   <Badge variant="outline" className="text-xs">
                     2
                   </Badge>
-                  <span className="text-xs">Click "Claim" button</span>
+                  <span className="text-xs">
+                    Click &quot;Claim&quot; button
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-xs">
