@@ -67,13 +67,35 @@ export function ClaimWinningsButton({
   });
 
   // Check if market is resolved and user has shares
+  // V2 getMarketInfo returns: [question, description, endTime, category, optionCount, resolved, disputed, invalidated, winningOptionId, creator]
   const isMarketResolved = marketInfo ? (marketInfo[5] as boolean) : false;
+  const isMarketDisputed = marketInfo ? (marketInfo[6] as boolean) : false;
+  const isMarketInvalidated = marketInfo ? (marketInfo[7] as boolean) : false;
   const winningOptionId = marketInfo ? (marketInfo[8] as bigint) : 0n;
 
   // Check if user has winning shares
   const hasWinningShares = () => {
-    if (!userShares || !isMarketResolved) return false;
-    return userShares[Number(winningOptionId)] > 0n;
+    if (!userShares || !isMarketResolved || winningOptionId === undefined)
+      return false;
+
+    // Additional validation: make sure winningOptionId is valid
+    const winningOptionIndex = Number(winningOptionId);
+    if (winningOptionIndex < 0 || winningOptionIndex >= userShares.length) {
+      console.log("Invalid winning option ID:", {
+        winningOptionId: winningOptionIndex,
+        userSharesLength: userShares.length,
+      });
+      return false;
+    }
+
+    console.log("Checking winning shares:", {
+      userShares,
+      winningOptionId: winningOptionIndex,
+      userSharesForWinningOption: userShares[winningOptionIndex],
+      isMarketResolved,
+    });
+
+    return userShares[winningOptionIndex] > 0n;
   };
 
   // Handle claiming winnings
@@ -96,6 +118,26 @@ export function ClaimWinningsButton({
       return;
     }
 
+    if (isMarketDisputed) {
+      toast({
+        title: "Market Disputed",
+        description:
+          "This market is currently under dispute and cannot process claims.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isMarketInvalidated) {
+      toast({
+        title: "Market Invalidated",
+        description:
+          "This market has been invalidated and cannot process claims.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (hasAlreadyClaimed) {
       toast({
         title: "Already Claimed",
@@ -106,6 +148,12 @@ export function ClaimWinningsButton({
     }
 
     if (!hasWinningShares()) {
+      console.log("No winning shares detected:", {
+        userShares,
+        winningOptionId: Number(winningOptionId),
+        isMarketResolved,
+      });
+
       toast({
         title: "No Winning Shares",
         description: "You don't have any winning shares in this market.",
@@ -113,6 +161,13 @@ export function ClaimWinningsButton({
       });
       return;
     }
+
+    console.log("Attempting to claim winnings:", {
+      marketId,
+      userShares,
+      winningOptionId: Number(winningOptionId),
+      userSharesForWinningOption: userShares?.[Number(winningOptionId)],
+    });
 
     try {
       await writeContract({
@@ -126,8 +181,16 @@ export function ClaimWinningsButton({
     } catch (error: any) {
       console.error("Error claiming winnings:", error);
 
-      // Check for the AlreadyClaimed error
-      if (error?.message?.includes("AlreadyClaimed")) {
+      // Check for various "already claimed" error patterns
+      const errorMessage = error?.message || error?.shortMessage || "";
+      const isAlreadyClaimed =
+        errorMessage.includes("AlreadyClaimed") ||
+        errorMessage.includes("already claimed") ||
+        errorMessage.includes("claimed") ||
+        error?.code === "CALL_EXCEPTION" ||
+        error?.reason === "AlreadyClaimed";
+
+      if (isAlreadyClaimed) {
         setHasAlreadyClaimed(true);
         toast({
           title: "Already Claimed",
@@ -164,8 +227,8 @@ export function ClaimWinningsButton({
   // Don't show button if user hasn't connected wallet
   if (!isConnected) return null;
 
-  // Don't show button if market is not resolved
-  if (!isMarketResolved) return null;
+  // Don't show button if market is not resolved or has issues
+  if (!isMarketResolved || isMarketDisputed || isMarketInvalidated) return null;
 
   // Don't show button if user has already claimed
   if (hasAlreadyClaimed) {
