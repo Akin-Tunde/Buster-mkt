@@ -15,7 +15,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { marketId, userAddress } = body;
 
-    if (!marketId || !userAddress) {
+    // Accept marketId = 0 (falsy in JS), so explicitly check for null/undefined.
+    if (
+      marketId === undefined ||
+      marketId === null ||
+      typeof userAddress !== "string" ||
+      userAddress.trim() === ""
+    ) {
       return NextResponse.json(
         { error: "Market ID and user address are required" },
         { status: 400 }

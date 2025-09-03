@@ -283,7 +283,10 @@ export function UserPortfolioV2() {
               quantity,
               timestamp,
             ] = trade;
-            const isBuy = buyer.toLowerCase() === accountAddress.toLowerCase();
+            const isBuy =
+              buyer && accountAddress
+                ? buyer.toLowerCase() === accountAddress.toLowerCase()
+                : false;
 
             // Find market and option names
             const position = positions.find(

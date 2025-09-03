@@ -106,7 +106,10 @@ export function V3FinancialManager({
         string
       ];
       setActualIsCreator(
-        (creator as unknown as string).toLowerCase() === address.toLowerCase()
+        creator && address
+          ? (creator as unknown as string).toLowerCase() ===
+              address.toLowerCase()
+          : false
       );
     }
   }, [marketInfo, address]);

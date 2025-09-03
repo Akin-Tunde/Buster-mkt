@@ -387,12 +387,18 @@ export function VoteHistory() {
         // Convert V2 trades to display format
         const displayV2Trades: DisplayVote[] = v2Trades.map((trade) => {
           const marketInfo = marketInfoCache[`v2_${Number(trade.marketId)}`];
-          const isBuy = trade.buyer.toLowerCase() === address.toLowerCase();
+          const isBuy =
+            trade.buyer && address
+              ? trade.buyer.toLowerCase() === address.toLowerCase()
+              : false;
           return {
             marketId: Number(trade.marketId),
-            option: marketInfo.options[Number(trade.optionId)],
+            option:
+              marketInfo?.options?.[Number(trade.optionId)] ||
+              `Option ${Number(trade.optionId) + 1}`,
             amount: trade.quantity, // Use quantity instead of amount
-            marketName: marketInfo.question,
+            marketName:
+              marketInfo?.question || `Market ${Number(trade.marketId)}`,
             timestamp: trade.timestamp,
             type: isBuy ? "buy" : "sell",
             version: "v2" as const,

@@ -409,9 +409,17 @@ export function UserStats() {
           }
 
           // If user was buyer, they gained shares; if seller, they lost shares
-          if (trade.buyer.toLowerCase() === address.toLowerCase()) {
+          if (
+            trade.buyer &&
+            address &&
+            trade.buyer.toLowerCase() === address.toLowerCase()
+          ) {
             v2UserPositions[trade.marketId][trade.optionId] += trade.quantity;
-          } else if (trade.seller.toLowerCase() === address.toLowerCase()) {
+          } else if (
+            trade.seller &&
+            address &&
+            trade.seller.toLowerCase() === address.toLowerCase()
+          ) {
             v2UserPositions[trade.marketId][trade.optionId] -= trade.quantity;
           }
         });

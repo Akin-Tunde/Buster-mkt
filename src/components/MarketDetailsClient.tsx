@@ -325,8 +325,8 @@ export function MarketDetailsClient({
                     marketType: 0, // PAID market type
                     optionCount: market.options?.length || 2,
                     options: (market.options || []).map((option, index) => ({
-                      name: option,
-                      description: option,
+                      name: option || `Option ${index + 1}`,
+                      description: option || `Option ${index + 1}`,
                       totalShares: market.optionShares?.[index] || 0n,
                       totalVolume: 0n,
                       currentPrice: 0n, // Will be fetched by the component
@@ -380,8 +380,8 @@ export function MarketDetailsClient({
                     marketType: 0, // PAID market type
                     optionCount: market.options?.length || 2,
                     options: (market.options || []).map((option, index) => ({
-                      name: option,
-                      description: option,
+                      name: option || `Option ${index + 1}`,
+                      description: option || `Option ${index + 1}`,
                       totalShares: market.optionShares?.[index] || 0n,
                       totalVolume: 0n,
                       currentPrice: 0n, // Will be fetched by the component

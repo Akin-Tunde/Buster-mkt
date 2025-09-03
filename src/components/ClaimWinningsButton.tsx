@@ -165,7 +165,7 @@ export function ClaimWinningsSection() {
                     Total Available Winnings
                   </p>
                   <p className="text-2xl font-bold text-green-900">
-                    {totalWinningsEth.toFixed(4)} ETH
+                    {totalWinningsEth.toFixed(4)} $Buster
                   </p>
                 </div>
                 <Badge
@@ -190,7 +190,7 @@ export function ClaimWinningsSection() {
                       Market #{winnings.marketId}
                     </p>
                     <p className="text-sm text-gray-600">
-                      {(Number(winnings.amount) / 1e18).toFixed(4)} ETH
+                      {(Number(winnings.amount) / 1e18).toFixed(4)} $Buster
                     </p>
                   </div>
                   <Button
