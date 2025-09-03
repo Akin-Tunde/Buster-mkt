@@ -108,7 +108,7 @@ export function BatchDistributionManager() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          marketId: parseInt(marketId),
+          marketId: marketId, // Send as string, not parsed int
         }),
       });
 

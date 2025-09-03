@@ -2,6 +2,7 @@
 
 import { UserStats } from "@/components/UserStats";
 import { VoteHistory } from "@/components/VoteHistory";
+import { ClaimWinningsSection } from "@/components/ClaimWinningsButton";
 import { useAccount } from "wagmi";
 import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,6 +34,9 @@ export default function ProfilePage() {
               {/* Stats Section */}
               <div className="lg:col-span-1 space-y-6">
                 <UserStats />
+
+                {/* Claim Winnings Section */}
+                <ClaimWinningsSection />
 
                 {/* V2 Analytics Quick Access */}
                 <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-purple-50">
