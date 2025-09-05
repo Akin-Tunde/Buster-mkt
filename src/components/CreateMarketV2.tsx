@@ -386,6 +386,7 @@ export function CreateMarketV2() {
       freeSharesPerUser:
         marketType === MarketType.FREE_ENTRY ? freeSharesPerUser : "N/A",
     });
+    console.log("🏁 Early Resolution Allowed:", earlyResolutionAllowed);
 
     if (!validateForm()) {
       console.error("❌ Form validation failed");
@@ -639,6 +640,10 @@ export function CreateMarketV2() {
         initialLiquidity: liquidityWei.toString(),
         earlyResolutionAllowed,
       });
+      console.log(
+        "🎁 FREE_ENTRY - Early Resolution Allowed:",
+        earlyResolutionAllowed
+      );
 
       marketCreationData = encodeFunctionData({
         abi: V2contractAbi,
@@ -668,6 +673,10 @@ export function CreateMarketV2() {
         initialLiquidity: liquidityWei.toString(),
         earlyResolutionAllowed,
       });
+      console.log(
+        "💰 PAID - Early Resolution Allowed:",
+        earlyResolutionAllowed
+      );
 
       marketCreationData = encodeFunctionData({
         abi: V2contractAbi,
