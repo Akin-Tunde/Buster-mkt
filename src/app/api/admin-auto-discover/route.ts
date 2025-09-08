@@ -64,17 +64,17 @@ export async function POST(request: NextRequest) {
 
     // Convert BigInt values to strings for JSON serialization
     const serializedWithdrawals = {
-      adminLiquidity: groupedWithdrawals.adminLiquidity.map(w => ({
+      adminLiquidity: groupedWithdrawals.adminLiquidity.map((w) => ({
         ...w,
-        amount: w.amount.toString()
+        amount: w.amount.toString(),
       })),
-      prizePool: groupedWithdrawals.prizePool.map(w => ({
+      prizePool: groupedWithdrawals.prizePool.map((w) => ({
         ...w,
-        amount: w.amount.toString()
+        amount: w.amount.toString(),
       })),
-      lpRewards: groupedWithdrawals.lpRewards.map(w => ({
+      lpRewards: groupedWithdrawals.lpRewards.map((w) => ({
         ...w,
-        amount: w.amount.toString()
+        amount: w.amount.toString(),
       })),
     };
 
@@ -254,9 +254,25 @@ async function checkMarketBatchForAdmin(
         // 2. Check for unused prize pool withdrawal (free markets only)
         const isFreeMarket = await checkIfFreeMarket(marketId);
         if (isFreeMarket && resolved) {
-          // For free markets, we can't easily determine unused prize pool without more complex logic
-          // This would require checking the free market config and current prize pool
-          // For now, we'll skip this check as it's complex to implement without additional contract functions
+          try {
+            const unusedPrizePool = await getUnusedPrizePool(marketId);
+            if (unusedPrizePool > 0n) {
+              withdrawals.push({
+                marketId,
+                amount: unusedPrizePool,
+                type: "prizePool",
+                description: `Unused prize pool for free market "${question.slice(
+                  0,
+                  30
+                )}..."`,
+              });
+            }
+          } catch (error) {
+            console.debug(
+              `Could not get unused prize pool for market ${marketId}:`,
+              error
+            );
+          }
         }
       }
 
@@ -333,10 +349,54 @@ async function checkIfFreeMarket(marketId: number): Promise<boolean> {
 // Get unused prize pool for a free market
 async function getUnusedPrizePool(marketId: number): Promise<bigint> {
   try {
-    // Note: This function doesn't exist in the current contract ABI
-    // We'll return 0 for now as this requires additional contract functions
-    console.debug(`getUnusedPrizePool not available for market ${marketId}`);
-    return 0n;
+    // Get free market info to understand the prize pool configuration
+    const freeMarketInfo = await publicClient.readContract({
+      address: V2contractAddress,
+      abi: V2contractAbi,
+      functionName: "getFreeMarketInfo",
+      args: [BigInt(marketId)],
+    });
+
+    if (!freeMarketInfo) {
+      return 0n;
+    }
+
+    const [
+      maxParticipants,
+      tokensPerParticipant,
+      currentParticipants,
+      totalPrizePool,
+      prizePoolWithdrawn,
+      // Additional field that we don't need for this calculation
+    ] = freeMarketInfo as readonly [
+      bigint,
+      bigint,
+      bigint,
+      bigint,
+      bigint,
+      boolean
+    ];
+
+    // If prize pool already withdrawn, no unused amount
+    if (prizePoolWithdrawn) {
+      return 0n;
+    }
+
+    // Calculate unused prize pool based on participation
+    const maxPossiblePrizePool = maxParticipants * tokensPerParticipant;
+    const actualPrizePool = currentParticipants * tokensPerParticipant;
+    const unusedPrizePool = maxPossiblePrizePool - actualPrizePool;
+
+    console.debug(`Market ${marketId} prize pool analysis:`, {
+      maxParticipants: maxParticipants.toString(),
+      tokensPerParticipant: tokensPerParticipant.toString(),
+      currentParticipants: currentParticipants.toString(),
+      maxPossiblePrizePool: maxPossiblePrizePool.toString(),
+      actualPrizePool: actualPrizePool.toString(),
+      unusedPrizePool: unusedPrizePool.toString(),
+    });
+
+    return unusedPrizePool > 0n ? unusedPrizePool : 0n;
   } catch (error) {
     console.error(
       `Error getting unused prize pool for market ${marketId}:`,
