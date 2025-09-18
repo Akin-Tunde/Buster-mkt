@@ -19,7 +19,7 @@ const CACHE_DURATION = 30 * 1000; // 30 seconds
 
 // V1 Market Info Contract Return
 type MarketInfoV1ContractReturn = readonly [
-  string, // question
+  string, // question//
   string, // optionA
   string, // optionB
   bigint, // endTime

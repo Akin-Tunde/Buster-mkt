@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// V1 and V2 market info types for potential future use
+// V1 and V2 market info types for potential future use//
 type MarketInfoV1ContractReturn = readonly [
   string,
   string,

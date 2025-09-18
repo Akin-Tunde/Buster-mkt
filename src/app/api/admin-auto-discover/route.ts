@@ -9,7 +9,7 @@ const publicClient = createPublicClient({
     process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL || "https://mainnet.base.org"
   ),
 });
-
+//
 interface AdminWithdrawal {
   marketId: number;
   amount: bigint;
@@ -109,10 +109,11 @@ async function discoverAdminWithdrawals(
 
   try {
     // First get the actual market count from the contract
-    const marketCount = (await publicClient.readContract({
+    const marketCount = (await (publicClient.readContract as any)({
       address: V2contractAddress,
       abi: V2contractAbi,
-      functionName: "getMarketCount",
+      // prefer the canonical "marketCount" name from the V2 ABI; cast to any to avoid strict literal-union errors
+      functionName: "marketCount",
       args: [],
     })) as bigint;
 
@@ -169,44 +170,31 @@ async function checkMarketBatchForAdmin(
   for (let marketId = startId; marketId < endId; marketId++) {
     try {
       // Get market info to check creator and market type
-      const marketInfo = await publicClient.readContract({
+      const marketInfo = (await (publicClient.readContract as any)({
         address: V2contractAddress,
         abi: V2contractAbi,
         functionName: "getMarketInfo",
         args: [BigInt(marketId)],
-      });
+      })) as unknown;
 
       if (!marketInfo) {
         console.log(`Market ${marketId} returned no info, skipping...`);
         continue;
       }
 
-      const [
-        question,
-        description,
-        endTime,
-        category,
-        optionCount,
-        resolved,
-        disputed,
-        marketType,
-        invalidated,
-        winningOptionId,
-        creator,
-      ] = marketInfo as readonly [
-        string,
-        string,
-        bigint,
-        number,
-        bigint,
-        boolean,
-        boolean,
-        number,
-        boolean,
-        bigint,
-        string,
-        boolean
-      ];
+      // Normalize the returned tuple defensively since ABI-generated tuple shapes vary.
+      const mi = marketInfo as readonly any[];
+      const question = String(mi[0] ?? "");
+      const description = String(mi[1] ?? "");
+      const endTime = BigInt(mi[2] ?? 0n);
+      const category = Number(mi[3] ?? 0);
+      const optionCount = BigInt(mi[4] ?? 0n);
+      const resolved = Boolean(mi[5]);
+      const disputed = Boolean(mi[6]);
+      const marketType = Number(mi[7] ?? 0);
+      const invalidated = Boolean(mi[8]);
+      const winningOptionId = BigInt(mi[9] ?? 0n);
+      const creator = String(mi[10] ?? "");
 
       // Check if user is the market creator
       const isCreator = creator.toLowerCase() === userAddress.toLowerCase();
@@ -215,22 +203,18 @@ async function checkMarketBatchForAdmin(
         // 1. Check for admin liquidity withdrawal
         // We need to get market financials to check admin liquidity status
         try {
-          const marketFinancials = await publicClient.readContract({
+          const marketFinancials = (await (publicClient.readContract as any)({
             address: V2contractAddress,
             abi: V2contractAbi,
             functionName: "getMarketFinancials",
             args: [BigInt(marketId)],
-          });
+          })) as unknown;
 
           if (marketFinancials) {
-            const [adminInitialLiquidity, , , , adminLiquidityClaimed] =
-              marketFinancials as readonly [
-                bigint,
-                bigint,
-                bigint,
-                bigint,
-                boolean
-              ];
+            const mf = marketFinancials as readonly any[];
+            const adminInitialLiquidity = BigInt(mf[0] ?? 0n);
+            // adminLiquidityClaimed might be at different indices depending on ABI; attempt common positions
+            const adminLiquidityClaimed = Boolean(mf[4] ?? mf[3] ?? false);
 
             if (!adminLiquidityClaimed && adminInitialLiquidity > 0n) {
               withdrawals.push({
@@ -278,16 +262,19 @@ async function checkMarketBatchForAdmin(
 
       // 3. Check for LP rewards (any user can have LP position)
       try {
-        const lpInfo = await publicClient.readContract({
+        const lpInfo = (await (publicClient.readContract as any)({
           address: V2contractAddress,
           abi: V2contractAbi,
           functionName: "getLPInfo",
           args: [BigInt(marketId), userAddress as `0x${string}`],
-        });
+        })) as unknown;
 
         if (lpInfo) {
-          const [contribution, rewardsClaimed, estimatedRewards] =
-            lpInfo as readonly [bigint, boolean, bigint];
+          const li = lpInfo as readonly any[];
+          // Common shape: [contribution: bigint, rewardsClaimed: boolean, estimatedRewards: bigint]
+          const contribution = BigInt(li[0] ?? 0n);
+          const rewardsClaimed = Boolean(li[1]);
+          const estimatedRewards = BigInt(li[2] ?? li[3] ?? 0n);
 
           if (!rewardsClaimed && estimatedRewards > 0n) {
             withdrawals.push({
@@ -331,7 +318,7 @@ async function checkMarketBatchForAdmin(
 // Check if market is a free market
 async function checkIfFreeMarket(marketId: number): Promise<boolean> {
   try {
-    const freeMarketInfo = await publicClient.readContract({
+    const freeMarketInfo = await (publicClient.readContract as any)({
       address: V2contractAddress,
       abi: V2contractAbi,
       functionName: "getFreeMarketInfo",
@@ -350,32 +337,24 @@ async function checkIfFreeMarket(marketId: number): Promise<boolean> {
 async function getUnusedPrizePool(marketId: number): Promise<bigint> {
   try {
     // Get free market info to understand the prize pool configuration
-    const freeMarketInfo = await publicClient.readContract({
+    const freeMarketInfo = (await (publicClient.readContract as any)({
       address: V2contractAddress,
       abi: V2contractAbi,
       functionName: "getFreeMarketInfo",
       args: [BigInt(marketId)],
-    });
+    })) as unknown;
 
     if (!freeMarketInfo) {
       return 0n;
     }
 
-    const [
-      maxParticipants,
-      tokensPerParticipant,
-      currentParticipants,
-      totalPrizePool,
-      prizePoolWithdrawn,
-      // Additional field that we don't need for this calculation
-    ] = freeMarketInfo as readonly [
-      bigint,
-      bigint,
-      bigint,
-      bigint,
-      bigint,
-      boolean
-    ];
+    const fm = freeMarketInfo as readonly any[];
+    const maxParticipants = BigInt(fm[0] ?? 0n);
+    const tokensPerParticipant = BigInt(fm[1] ?? 0n);
+    const currentParticipants = BigInt(fm[2] ?? 0n);
+    const totalPrizePool = BigInt(fm[3] ?? 0n);
+    // prizePoolWithdrawn may be boolean or bigint depending on ABI shape
+    const prizePoolWithdrawn = Boolean(fm[4]);
 
     // If prize pool already withdrawn, no unused amount
     if (prizePoolWithdrawn) {

@@ -11,7 +11,7 @@ import sharp from "sharp";
 import { promises as fs } from "fs";
 import path from "node:path";
 import { format } from "date-fns";
-
+//
 interface MarketImageDataV1 {
   question: string;
   optionA: string;

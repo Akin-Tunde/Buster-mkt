@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: "Invalid market ID" }, { status: 400 });
     }
 
-    // Get market info from contract
+    // Get market info from contract//
     const marketInfo = (await publicClient.readContract({
       address: V2contractAddress,
       abi: V2contractAbi,

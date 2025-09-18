@@ -9,7 +9,7 @@ const publicClient = createPublicClient({
     process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL || "https://mainnet.base.org"
   ),
 });
-
+//
 interface UserWinnings {
   marketId: number;
   amount: bigint;
@@ -43,14 +43,16 @@ export async function POST(request: NextRequest) {
 
     for (const marketId of participatedMarkets) {
       try {
-        const result = await publicClient.readContract({
+        const result = (await (publicClient.readContract as any)({
           address: V2contractAddress,
           abi: V2contractAbi,
           functionName: "getUserWinnings",
           args: [BigInt(marketId), userAddress as `0x${string}`],
-        });
+        })) as unknown;
 
-        const [hasWinnings, amount] = result as [boolean, bigint];
+        const r = result as readonly any[];
+        const hasWinnings = Boolean(r[0]);
+        const amount = BigInt(r[1] ?? 0n);
 
         if (hasWinnings && amount > 0n) {
           winningsData.push({
@@ -145,12 +147,12 @@ async function readUserTradeHistory(userAddress: string): Promise<any[]> {
 
     while (index < maxAttempts) {
       try {
-        const trade = await publicClient.readContract({
+        const trade = (await (publicClient.readContract as any)({
           address: V2contractAddress,
           abi: V2contractAbi,
           functionName: "userTradeHistory",
           args: [userAddress as `0x${string}`, BigInt(index)],
-        });
+        })) as unknown;
 
         if (trade) {
           trades.push(trade);
@@ -187,15 +189,16 @@ async function checkMarketBatch(
   for (let marketId = startId; marketId < endId; marketId++) {
     try {
       // Check if user has shares in this market
-      const shares = await publicClient.readContract({
+      const shares = (await (publicClient.readContract as any)({
         address: V2contractAddress,
         abi: V2contractAbi,
         functionName: "getUserShares",
         args: [BigInt(marketId), userAddress as `0x${string}`],
-      });
+      })) as unknown;
 
       // If user has any shares in any option, they participated
-      const hasParticipation = (shares as bigint[]).some((share) => share > 0n);
+      const sharesArr = (shares as readonly any[]).map((s) => BigInt(s ?? 0n));
+      const hasParticipation = sharesArr.some((share) => share > 0n);
 
       if (hasParticipation) {
         participatedMarkets.push(marketId);

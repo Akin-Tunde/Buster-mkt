@@ -20,7 +20,7 @@ export async function GET(
       return NextResponse.json({ error: "Invalid address" }, { status: 400 });
     }
 
-    // Get LP info from contract
+    // Get LP info from contract//
     const lpInfo = (await publicClient.readContract({
       address: V2contractAddress,
       abi: V2contractAbi,

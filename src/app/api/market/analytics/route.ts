@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get analytics from subgraph
+    // Get analytics from subgraph//
     const analytics = await subgraphAnalytics.getMarketAnalytics(marketId);
 
     // Filter data based on time range

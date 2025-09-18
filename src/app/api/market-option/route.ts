@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Read market option data from contract
+    // Read market option data from contract//
     const optionData = await publicClient.readContract({
       address: V2contractAddress,
       abi: V2contractAbi,

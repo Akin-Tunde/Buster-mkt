@@ -12,7 +12,7 @@ import {
 } from "@/constants/contract";
 import { Address } from "viem";
 
-const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 }); // 1-hour TTL
+const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 }); // 1-hour TTL//
 const CACHE_KEY = "leaderboard_v7"; // Updated version for V1+V2 combined
 const NEYNAR_CACHE_KEY = "neynar_users_v7";
 const PAGE_SIZE = 100; // Users per contract call

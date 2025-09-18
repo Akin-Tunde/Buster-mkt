@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { marketId, userAddress } = body;
 
-    // Accept marketId = 0 (falsy in JS), so explicitly check for null/undefined.
+    // Accept marketId = 0 (falsy in JS), so explicitly check for null/undefined.//
     if (
       marketId === undefined ||
       marketId === null ||
