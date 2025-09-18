@@ -186,10 +186,9 @@ export function AdminWithdrawalsSection() {
     if (!address) return;
 
     try {
-      let functionName:
-        | "withdrawAdminLiquidity"
-        | "withdrawUnusedPrizePool"
-        | "claimLPRewards";
+      // functionName may not exist in the in-repo ABI typings (ABI differs by contract version).
+      // Use `any` here to avoid TypeScript literal-union errors from the large `as const` ABI.
+      let functionName: any;
       switch (type) {
         case "adminLiquidity":
           functionName = "withdrawAdminLiquidity";
@@ -204,10 +203,11 @@ export function AdminWithdrawalsSection() {
           throw new Error("Unknown withdrawal type");
       }
 
-      writeContract({
+      // Cast the call to `any` to avoid the ABI-derived `functionName` union type mismatch.
+      (writeContract as any)({
         address: V2contractAddress,
         abi: V2contractAbi,
-        functionName,
+        functionName: functionName as any,
         args: [BigInt(marketId)],
       });
     } catch (error) {

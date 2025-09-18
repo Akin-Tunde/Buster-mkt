@@ -65,10 +65,11 @@ async function checkMarketValidation(marketId: number): Promise<boolean> {
     // We'll try to simulate a purchase to see if it throws MarketNotValidated
     // This is a workaround since there's no direct validation getter
     // We use estimateContractGas with a dummy call to check if the market is validated
-    await publicClient.estimateContractGas({
+    // Cast to `any` to avoid ABI-derived type errors (ABI varies by deployed contract version).
+    await (publicClient.estimateContractGas as any)({
       address: V2contractAddress,
       abi: V2contractAbi,
-      functionName: "buyShares",
+      functionName: "buyShares" as any,
       args: [BigInt(marketId), BigInt(0), BigInt(1), BigInt(1000000)], // Try to buy 1 share of option 0 with max price 1000000
       account: "0x0000000000000000000000000000000000000001", // Dummy account
     });

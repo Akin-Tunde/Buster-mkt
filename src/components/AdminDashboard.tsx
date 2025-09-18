@@ -44,7 +44,7 @@ export function AdminDashboard() {
   const { data: marketCount } = useReadContract({
     address: V2contractAddress,
     abi: V2contractAbi,
-    functionName: "getMarketCount",
+    functionName: "marketCount",
     query: { enabled: isConnected },
   });
 

@@ -67,9 +67,10 @@ export function FreeMarketClaimStatus({
 
   // Compute free market config values if market is available
   const freeMarketConfig = market?.freeMarketConfig;
-  const tokensPerParticipant = freeMarketConfig
-    ? BigInt(freeMarketConfig.tokensPerParticipant)
-    : 0n;
+  const tokensPerParticipant =
+    freeMarketConfig && freeMarketConfig.tokensPerParticipant
+      ? BigInt(freeMarketConfig.tokensPerParticipant)
+      : 0n;
 
   // Handle claim error
   useEffect(() => {
@@ -128,8 +129,14 @@ export function FreeMarketClaimStatus({
   const hasUserClaimed = claimStatus ? claimStatus[0] : false;
   const tokensReceived = claimStatus ? claimStatus[1] : 0n;
 
-  const maxParticipants = BigInt(freeMarketConfig.maxFreeParticipants);
-  const currentParticipants = BigInt(freeMarketConfig.currentFreeParticipants);
+  const maxParticipants =
+    freeMarketConfig && freeMarketConfig.maxFreeParticipants
+      ? BigInt(freeMarketConfig.maxFreeParticipants)
+      : 0n;
+  const currentParticipants =
+    freeMarketConfig && freeMarketConfig.currentFreeParticipants
+      ? BigInt(freeMarketConfig.currentFreeParticipants)
+      : 0n;
   const slotsRemaining = maxParticipants - currentParticipants;
 
   // Handle claiming free tokens

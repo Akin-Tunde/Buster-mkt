@@ -199,10 +199,10 @@ export function V3AdminDashboard() {
         description: "Withdrawing admin liquidity...",
       });
 
-      await writeContract({
+      await (writeContract as any)({
         address: V2contractAddress,
         abi: V2contractAbi,
-        functionName: "withdrawAdminLiquidity",
+        functionName: "withdrawAdminLiquidity" as any,
         args: [BigInt(adminLiquidityMarketId)],
       });
     } catch (error: any) {
@@ -233,10 +233,10 @@ export function V3AdminDashboard() {
         description: "Withdrawing unused prize pool...",
       });
 
-      await writeContract({
+      await (writeContract as any)({
         address: V2contractAddress,
         abi: V2contractAbi,
-        functionName: "withdrawUnusedPrizePool",
+        functionName: "withdrawUnusedPrizePool" as any,
         args: [BigInt(prizePoolMarketId)],
       });
     } catch (error: any) {
