@@ -230,7 +230,7 @@ export function AdminDashboard() {
               <span className="hidden sm:inline">Distribute</span>
             </TabsTrigger>
           )} */}
-          {isAdmin && (
+          {(isOwner || isAdmin) && (
             <TabsTrigger
               value="withdrawals"
               className="flex items-center gap-1 md:gap-2 flex-1 min-w-[100px] md:min-w-0 text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2"
@@ -310,7 +310,7 @@ export function AdminDashboard() {
         )} */}
 
         {/* Admin Withdrawals Tab - LMSR Compatible */}
-        {isAdmin && (
+        {(isOwner || isAdmin) && (
           <TabsContent
             value="withdrawals"
             className="space-y-4 md:space-y-6 mt-3 md:mt-6"

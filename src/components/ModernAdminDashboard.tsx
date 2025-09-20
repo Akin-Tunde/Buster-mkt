@@ -39,7 +39,17 @@ export function ModernAdminDashboard() {
     isAdmin,
     isOwner,
   } = useUserRoles();
-  const [activeTab, setActiveTab] = useState("create");
+
+  // Set default tab based on user permissions - prioritize withdrawals for admin users
+  const getDefaultTab = () => {
+    if (hasCreatorAccess) return "create";
+    if (isOwner || isAdmin) return "withdrawals";
+    if (hasValidatorAccess) return "validate";
+    if (hasResolverAccess) return "resolve";
+    return "create";
+  };
+
+  const [activeTab, setActiveTab] = useState(getDefaultTab());
 
   // Get some basic stats using V3 contract
   const { data: marketCount } = useReadContract({
@@ -114,6 +124,32 @@ export function ModernAdminDashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6 mb-16 md:mb-20">
+      {/* Withdrawals Notification Banner */}
+      {(isOwner || isAdmin) && (
+        <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <DollarSign className="h-5 w-5 text-blue-600" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-blue-900">
+                  💰 Admin Withdrawals Available
+                </p>
+                <p className="text-xs text-blue-700">
+                  Check the "Withdrawals" tab to claim admin liquidity and
+                  unused funds from your resolved markets
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab("withdrawals")}
+                className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+              >
+                View Withdrawals
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
         <div>
