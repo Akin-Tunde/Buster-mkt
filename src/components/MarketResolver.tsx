@@ -5,18 +5,15 @@ import {
   useAccount,
   useWriteContract,
   useWaitForTransactionReceipt,
+  useReadContract,
 } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
-import {
-  subgraphClient,
-  GET_MARKETS,
-  GET_MARKET_BY_ID,
-  Market as MarketEntity,
-} from "@/lib/subgraph";
 import { useToast } from "@/components/ui/use-toast";
 import {
   V2contractAddress,
   V2contractAbi,
+  PolicastViews,
+  PolicastViewsAbi,
   publicClient,
 } from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,31 +73,63 @@ export function MarketResolver() {
     "all" | "ready" | "resolved" | "disputed"
   >("all"); // Changed default from "ready" to "all"
 
-  // Markets are loaded from the subgraph for performance
+  // Get market count from contract
+  const { data: marketCount } = useReadContract({
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
+    functionName: "getMarketCount",
+    query: {
+      enabled: isConnected,
+    },
+  });
+
+  // Markets are loaded directly from the contract
   const {
     data: marketsData,
     isLoading: isLoadingMarkets,
     error: marketsError,
     refetch: refetchMarkets,
   } = useQuery({
-    queryKey: ["marketsList"],
+    queryKey: ["marketsList", marketCount],
     queryFn: async () => {
-      console.log("Fetching markets from subgraph..."); // Debug log
-      try {
-        const resp = (await subgraphClient.request(GET_MARKETS, {
-          first: 200,
-          skip: 0,
-          orderBy: "totalVolume",
-          orderDirection: "desc",
-        })) as any;
-        console.log("Subgraph response:", resp); // Debug log
-        return resp.marketCreateds as any[]; // Changed from markets to marketCreateds
-      } catch (error) {
-        console.error("Subgraph query error:", error);
-        throw error;
+      if (!marketCount) return [];
+
+      console.log("Fetching markets from contract...", Number(marketCount)); // Debug log
+
+      const markets = [];
+      const count = Number(marketCount);
+
+      // Fetch markets in batches to avoid RPC limits
+      for (let i = 0; i < count; i++) {
+        try {
+          const marketInfo = await publicClient.readContract({
+            address: PolicastViews,
+            abi: PolicastViewsAbi,
+            functionName: "getMarketInfo",
+            args: [BigInt(i)],
+          });
+
+          const marketStatus = await publicClient.readContract({
+            address: PolicastViews,
+            abi: PolicastViewsAbi,
+            functionName: "getMarketStatus",
+            args: [BigInt(i)],
+          });
+
+          markets.push({
+            id: i,
+            marketInfo,
+            marketStatus,
+          });
+        } catch (error) {
+          console.error(`Error fetching market ${i}:`, error);
+        }
       }
+
+      console.log("Contract response:", markets); // Debug log
+      return markets;
     },
-    enabled: isConnected,
+    enabled: isConnected && !!marketCount,
     refetchInterval: 30000,
   });
 
@@ -111,10 +140,10 @@ export function MarketResolver() {
       hash,
     });
 
-  // Map subgraph markets to local MarketInfo shape
+  // Map contract markets to local MarketInfo shape
   useEffect(() => {
     const mapMarkets = (items: any[] | undefined) => {
-      console.log("Mapping markets from subgraph:", items); // Debug log
+      console.log("Mapping markets from contract:", items); // Debug log
       if (!items) {
         setIsLoading(false);
         return;
@@ -122,27 +151,45 @@ export function MarketResolver() {
       setIsLoading(true);
       try {
         const now = Math.floor(Date.now() / 1000);
-        const mapped: MarketInfo[] = items.map((m) => {
-          const endTime = BigInt(Number(m.endTime || 0));
-          const optionCount = BigInt(m.options ? m.options.length : 0);
-          const resolved = false; // Will need to cross-reference with MarketResolved events
-          const canResolve = Number(endTime) <= now && !resolved;
-
-          return {
-            marketId: Number(m.marketId), // Changed from m.id to m.marketId
-            question: m.question,
-            description: "", // Not available in MarketCreated event
+        const mapped: MarketInfo[] = items.map((item) => {
+          const { marketInfo, marketStatus } = item;
+          const [
+            title,
+            description,
             endTime,
-            category: Number(m.category || 0),
+            category,
             optionCount,
             resolved,
-            disputed: false,
-            winningOptionId: 0n, // Will need to get from MarketResolved events
-            creator: m.creator,
-            options: m.options || [],
-            totalShares: Array((m.options || []).length).fill(0n),
+            resolvedOutcome,
+            marketType,
+            invalidated,
+            totalVolume,
+          ] = marketInfo;
+
+          const [
+            isActive,
+            isResolved,
+            isExpired,
+            canTrade,
             canResolve,
-            earlyResolutionAllowed: false,
+            timeRemaining,
+          ] = marketStatus;
+
+          return {
+            marketId: item.id,
+            question: title,
+            description: description || "",
+            endTime: BigInt(Number(endTime)),
+            category: Number(category),
+            optionCount: BigInt(Number(optionCount)),
+            resolved: Boolean(resolved),
+            disputed: false, // Not available in basic info
+            winningOptionId: 0n, // Would need additional call to get this
+            creator: "", // Would need additional call to get this
+            options: [], // Would need additional calls to get option names
+            totalShares: Array(Number(optionCount)).fill(0n),
+            canResolve: Boolean(canResolve),
+            earlyResolutionAllowed: false, // Would need additional call
           } as MarketInfo;
         });
 
@@ -158,33 +205,78 @@ export function MarketResolver() {
     mapMarkets((marketsData as any) || undefined);
   }, [marketsData]);
 
-  // Details for a single selected market can be fetched from the subgraph when needed
+  // Details for a single selected market can be fetched from the contract when needed
   const { data: selectedMarketEntity, refetch: refetchSelectedMarket } =
     useQuery({
       queryKey: ["market", selectedMarket?.marketId ?? null],
       queryFn: async () => {
         if (!selectedMarket) return null;
-        const resp = (await subgraphClient.request(GET_MARKET_BY_ID, {
-          id: selectedMarket.marketId.toString(),
-        })) as any;
-        return resp.market as MarketEntity | null;
+
+        try {
+          const marketInfo = await publicClient.readContract({
+            address: PolicastViews,
+            abi: PolicastViewsAbi,
+            functionName: "getMarketInfo",
+            args: [BigInt(selectedMarket.marketId)],
+          });
+
+          const creator = await publicClient.readContract({
+            address: PolicastViews,
+            abi: PolicastViewsAbi,
+            functionName: "getMarketCreator",
+            args: [BigInt(selectedMarket.marketId)],
+          });
+
+          const earlyResolution = await publicClient.readContract({
+            address: PolicastViews,
+            abi: PolicastViewsAbi,
+            functionName: "getMarketEarlyResolutionAllowed",
+            args: [BigInt(selectedMarket.marketId)],
+          });
+
+          // Get option names
+          const optionCount = Number(marketInfo[4]);
+          const options = [];
+          for (let i = 0; i < optionCount; i++) {
+            const optionData = await publicClient.readContract({
+              address: PolicastViews,
+              abi: PolicastViewsAbi,
+              functionName: "getMarketOption",
+              args: [BigInt(selectedMarket.marketId), BigInt(i)],
+            });
+            options.push(optionData[0]); // option name
+          }
+
+          return {
+            marketInfo,
+            creator,
+            earlyResolution,
+            options,
+          };
+        } catch (error) {
+          console.error("Error fetching selected market:", error);
+          return null;
+        }
       },
       enabled: !!selectedMarket,
     });
 
   useEffect(() => {
     if (!selectedMarketEntity) return;
-    // merge details (options array already present) and update totalShares placeholder
+    // merge details from the contract calls
     setSelectedMarket((prev) => {
       if (!prev) return prev;
-      const options = selectedMarketEntity.options || prev.options;
+      const { marketInfo, creator, earlyResolution, options } =
+        selectedMarketEntity;
+      const resolved = Boolean(marketInfo[5]);
+
       return {
         ...prev,
-        options,
-        totalShares: Array(options.length).fill(0n),
-        winningOptionId: selectedMarketEntity.winningOptionId
-          ? BigInt(Number(selectedMarketEntity.winningOptionId))
-          : prev.winningOptionId,
+        creator: creator || prev.creator,
+        options: options || prev.options,
+        resolved,
+        totalShares: Array(options?.length || 0).fill(0n),
+        earlyResolutionAllowed: Boolean(earlyResolution),
       };
     });
   }, [selectedMarketEntity]);
@@ -388,7 +480,7 @@ export function MarketResolver() {
                 Error Loading Markets
               </h3>
               <p className="text-gray-600 mb-4">
-                Failed to load markets from subgraph: {marketsError.message}
+                Failed to load markets from contract: {marketsError.message}
               </p>
               <Button onClick={() => refetchMarkets()}>Retry</Button>
             </div>
