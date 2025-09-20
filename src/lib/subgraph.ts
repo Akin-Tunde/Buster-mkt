@@ -15,63 +15,44 @@ export const GET_MARKETS = gql`
     $orderBy: String!
     $orderDirection: String!
   ) {
-    markets(
+    marketCreateds(
       first: $first
       skip: $skip
-      orderBy: $orderBy
-      orderDirection: $orderDirection
+      orderBy: blockTimestamp
+      orderDirection: desc
     ) {
       id
+      marketId
       question
-      description
       options
       endTime
       category
       marketType
       creator
-      resolved
-      winningOptionId
-      invalidated
-      totalVolume
-      liquidity
-      createdAt
-      freeMarketConfig {
-        id
-        maxFreeParticipants
-        tokensPerParticipant
-        totalPrizePool
-        currentFreeParticipants
-        isActive
-      }
+      blockTimestamp
     }
   }
 `;
 
 export const GET_MARKET_BY_ID = gql`
-  query GetMarketById($id: ID!) {
-    market(id: $id) {
+  query GetMarketById($marketId: String!) {
+    marketCreateds(where: { marketId: $marketId }) {
       id
+      marketId
       question
-      description
       options
       endTime
       category
       marketType
       creator
-      resolved
+      blockTimestamp
+    }
+    marketResolveds(where: { marketId: $marketId }) {
       winningOptionId
-      invalidated
-      totalVolume
-      liquidity
-      createdAt
-      freeMarketConfig {
-        id
-        maxFreeParticipants
-        tokensPerParticipant
-        totalPrizePool
-        currentFreeParticipants
-        isActive
-      }
+      resolver
+    }
+    marketInvalidateds(where: { marketId: $marketId }) {
+      id
     }
   }
 `;

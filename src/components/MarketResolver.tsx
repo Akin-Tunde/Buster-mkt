@@ -94,7 +94,7 @@ export function MarketResolver() {
           orderDirection: "desc",
         })) as any;
         console.log("Subgraph response:", resp); // Debug log
-        return resp.markets as MarketEntity[];
+        return resp.marketCreateds as any[]; // Changed from markets to marketCreateds
       } catch (error) {
         console.error("Subgraph query error:", error);
         throw error;
@@ -113,7 +113,7 @@ export function MarketResolver() {
 
   // Map subgraph markets to local MarketInfo shape
   useEffect(() => {
-    const mapMarkets = (items: MarketEntity[] | undefined) => {
+    const mapMarkets = (items: any[] | undefined) => {
       console.log("Mapping markets from subgraph:", items); // Debug log
       if (!items) {
         setIsLoading(false);
@@ -125,21 +125,19 @@ export function MarketResolver() {
         const mapped: MarketInfo[] = items.map((m) => {
           const endTime = BigInt(Number(m.endTime || 0));
           const optionCount = BigInt(m.options ? m.options.length : 0);
-          const resolved = !!m.resolved;
+          const resolved = false; // Will need to cross-reference with MarketResolved events
           const canResolve = Number(endTime) <= now && !resolved;
 
           return {
-            marketId: Number(m.id),
+            marketId: Number(m.marketId), // Changed from m.id to m.marketId
             question: m.question,
-            description: m.description || "",
+            description: "", // Not available in MarketCreated event
             endTime,
             category: Number(m.category || 0),
             optionCount,
             resolved,
             disputed: false,
-            winningOptionId: m.winningOptionId
-              ? BigInt(Number(m.winningOptionId))
-              : 0n,
+            winningOptionId: 0n, // Will need to get from MarketResolved events
             creator: m.creator,
             options: m.options || [],
             totalShares: Array((m.options || []).length).fill(0n),
