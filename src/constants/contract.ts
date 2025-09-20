@@ -9,8 +9,8 @@ export const publicClient = createPublicClient({
 
 export const contractAddress = "0xd24261cD87Ac11A8961a2d5df7036ad87ca7F02A";
 export const tokenAddress = "0x53Bd7F868764333de01643ca9102ee4297eFA3cb";
-export const V2contractAddress = "0x8aCAa80590bf3d8f419568a241c88C7791136B8C";
-export const PolicastViews = "0x8690A98d26E36cb595e1B31E7Ee960603EeB48E2";
+export const V2contractAddress = "0x403f2dE2647Eb30bd07603c2b259DA6B8A4B831C";
+export const PolicastViews = "0x89bd3C8D4f770cFFb83Eb48De981c60b441373b3";
 // V1 Contract ABI for binary markets (legacy)
 export const contractAbi = [
   {
@@ -2703,6 +2703,31 @@ export const V2contractAbi = [
         type: "address",
         indexed: false,
         internalType: "address",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "UnusedPrizePoolWithdrawn",
+    inputs: [
+      {
+        name: "marketId",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "creator",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
       },
     ],
     anonymous: false,
