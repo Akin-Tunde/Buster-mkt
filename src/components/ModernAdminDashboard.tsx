@@ -124,35 +124,6 @@ export function ModernAdminDashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6 mb-16 md:mb-20">
-      {/* Debug Info - Remove in production */}
-      {isConnected && (
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-3">
-            <div className="text-xs text-yellow-800 space-y-1">
-              <p>
-                <strong>Permissions:</strong> isOwner: {isOwner.toString()},
-                isAdmin: {isAdmin.toString()}, hasCreatorAccess:{" "}
-                {hasCreatorAccess.toString()}, hasResolverAccess:{" "}
-                {hasResolverAccess.toString()}, hasValidatorAccess:{" "}
-                {hasValidatorAccess.toString()}
-              </p>
-              <p>
-                <strong>Tabs Visible:</strong>
-                {hasCreatorAccess && " Create"}
-                {hasValidatorAccess && " Validate"}
-                {hasValidatorAccess && " Invalidate"}
-                {hasResolverAccess && " Resolve"}
-                {(isOwner || isAdmin) && " Withdrawals"}
-                {isOwner && " Roles"}
-              </p>
-              <p>
-                <strong>Default Tab:</strong> {getDefaultTab()}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Withdrawals Notification Banner */}
       {(isOwner || isAdmin) && (
         <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">

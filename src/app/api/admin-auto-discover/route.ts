@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
-import { V2contractAddress, V2contractAbi } from "@/constants/contract";
+import {
+  V2contractAddress,
+  V2contractAbi,
+  PolicastViews,
+  PolicastViewsAbi,
+} from "@/constants/contract";
 
 const publicClient = createPublicClient({
   chain: base,
@@ -141,8 +146,8 @@ async function discoverAdminWithdrawals(
         );
         withdrawals.push(...batchWithdrawals);
 
-        // Small delay to avoid rate limits
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Increase delay to avoid rate limits
+        await new Promise((resolve) => setTimeout(resolve, 200));
       } catch (error) {
         console.error(`Error checking markets ${startId}-${endId}:`, error);
         // Continue with next batch
@@ -169,7 +174,7 @@ async function checkMarketBatchForAdmin(
 
   for (let marketId = startId; marketId < endId; marketId++) {
     try {
-      // Get market info to check creator and market type
+      // Get market info to check market status
       const marketInfo = (await (publicClient.readContract as any)({
         address: V2contractAddress,
         abi: V2contractAbi,
@@ -182,7 +187,15 @@ async function checkMarketBatchForAdmin(
         continue;
       }
 
-      // Normalize the returned tuple defensively since ABI-generated tuple shapes vary.
+      // Get market creator from Views contract
+      const creator = (await (publicClient.readContract as any)({
+        address: PolicastViews,
+        abi: PolicastViewsAbi, // Use the correct Views contract ABI
+        functionName: "getMarketCreator",
+        args: [BigInt(marketId)],
+      })) as string;
+
+      // Parse the market info tuple (V3 contract structure)
       const mi = marketInfo as readonly any[];
       const question = String(mi[0] ?? "");
       const description = String(mi[1] ?? "");
@@ -190,22 +203,33 @@ async function checkMarketBatchForAdmin(
       const category = Number(mi[3] ?? 0);
       const optionCount = BigInt(mi[4] ?? 0n);
       const resolved = Boolean(mi[5]);
-      const disputed = Boolean(mi[6]);
+      const resolvedOutcome = Boolean(mi[6]); // This is different from disputed
       const marketType = Number(mi[7] ?? 0);
       const invalidated = Boolean(mi[8]);
-      const winningOptionId = BigInt(mi[9] ?? 0n);
-      const creator = String(mi[10] ?? "");
+      const totalVolume = BigInt(mi[9] ?? 0n);
 
       // Check if user is the market creator
       const isCreator = creator.toLowerCase() === userAddress.toLowerCase();
+
+      console.log(`Market ${marketId} analysis:`, {
+        question: question.slice(0, 50),
+        creator,
+        userAddress,
+        isCreator,
+        resolved,
+        resolvedOutcome,
+        invalidated,
+        marketType,
+        totalVolume: totalVolume.toString(),
+      });
 
       if (isCreator) {
         // 1. Check for admin liquidity withdrawal
         // We need to get market financials to check admin liquidity status
         try {
           const marketFinancials = (await (publicClient.readContract as any)({
-            address: V2contractAddress,
-            abi: V2contractAbi,
+            address: PolicastViews, // Use Views contract for financials too
+            abi: PolicastViewsAbi, // Use Views ABI
             functionName: "getMarketFinancials",
             args: [BigInt(marketId)],
           })) as unknown;
@@ -213,19 +237,67 @@ async function checkMarketBatchForAdmin(
           if (marketFinancials) {
             const mf = marketFinancials as readonly any[];
             const adminInitialLiquidity = BigInt(mf[0] ?? 0n);
-            // adminLiquidityClaimed might be at different indices depending on ABI; attempt common positions
-            const adminLiquidityClaimed = Boolean(mf[4] ?? mf[3] ?? false);
+            const userLiquidity = BigInt(mf[1] ?? 0n);
+            const platformFeesCollected = BigInt(mf[2] ?? 0n);
+            const adminLiquidityClaimed = Boolean(mf[3]);
 
-            if (!adminLiquidityClaimed && adminInitialLiquidity > 0n) {
+            console.log(`Market ${marketId} financials:`, {
+              adminInitialLiquidity: adminInitialLiquidity.toString(),
+              userLiquidity: userLiquidity.toString(),
+              platformFeesCollected: platformFeesCollected.toString(),
+              adminLiquidityClaimed,
+              resolved,
+              resolvedOutcome,
+              invalidated,
+              isInvalidatedMarket: invalidated,
+              marketType,
+            });
+
+            // For invalidated markets, check if there are any special withdrawal mechanisms
+            if (invalidated && adminInitialLiquidity === 0n) {
+              console.log(
+                `Market ${marketId} is invalidated with 0 admin liquidity - this might be expected behavior for refunded markets`
+              );
+            }
+
+            // Admin can withdraw initial liquidity if:
+            // - There's admin liquidity to claim
+            // - Admin hasn't claimed liquidity yet
+            // - Market is resolved OR invalidated (invalidated markets also allow withdrawals)
+            if (
+              adminInitialLiquidity > 0n &&
+              !adminLiquidityClaimed &&
+              (resolved || invalidated)
+            ) {
+              const description = invalidated
+                ? `Admin liquidity from invalidated market: ${question.slice(
+                    0,
+                    50
+                  )}...`
+                : `Admin liquidity from resolved market: ${question.slice(
+                    0,
+                    50
+                  )}...`;
+
               withdrawals.push({
                 marketId,
                 amount: adminInitialLiquidity,
                 type: "adminLiquidity",
-                description: `Admin liquidity for market "${question.slice(
-                  0,
-                  30
-                )}..."`,
+                description,
               });
+              console.log(
+                `Found admin liquidity withdrawal for market ${marketId}: ${adminInitialLiquidity.toString()} (${
+                  invalidated ? "invalidated" : "resolved"
+                })`
+              );
+            } else {
+              console.log(
+                `No admin liquidity withdrawal for market ${marketId}: ` +
+                  `amount=${adminInitialLiquidity.toString()}, ` +
+                  `claimed=${adminLiquidityClaimed}, ` +
+                  `resolved=${resolved}, ` +
+                  `invalidated=${invalidated}`
+              );
             }
           }
         } catch (error) {
@@ -260,37 +332,11 @@ async function checkMarketBatchForAdmin(
         }
       }
 
-      // 3. Check for LP rewards (any user can have LP position)
-      try {
-        const lpInfo = (await (publicClient.readContract as any)({
-          address: V2contractAddress,
-          abi: V2contractAbi,
-          functionName: "getLPInfo",
-          args: [BigInt(marketId), userAddress as `0x${string}`],
-        })) as unknown;
-
-        if (lpInfo) {
-          const li = lpInfo as readonly any[];
-          // Common shape: [contribution: bigint, rewardsClaimed: boolean, estimatedRewards: bigint]
-          const contribution = BigInt(li[0] ?? 0n);
-          const rewardsClaimed = Boolean(li[1]);
-          const estimatedRewards = BigInt(li[2] ?? li[3] ?? 0n);
-
-          if (!rewardsClaimed && estimatedRewards > 0n) {
-            withdrawals.push({
-              marketId,
-              amount: estimatedRewards,
-              type: "lpRewards",
-              description: `LP rewards for market "${question.slice(
-                0,
-                30
-              )}..."`,
-            });
-          }
-        }
-      } catch (error) {
-        console.debug(`Could not get LP info for market ${marketId}:`, error);
-      }
+      // 3. LP Rewards are not available in V3 LMSR contract
+      // The V3 contract uses LMSR instead of traditional LP reward system
+      console.log(
+        `Market ${marketId}: LP rewards not available in V3 contract (uses LMSR)`
+      );
     } catch (error: any) {
       // Handle specific error types
       if (

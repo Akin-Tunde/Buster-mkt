@@ -79,6 +79,16 @@ export function AdminWithdrawalsSection() {
         const data = await response.json();
         console.log("Auto-discovered admin withdrawals:", data);
 
+        // Debug: Show more detailed information
+        console.log("DEBUG - Response details:", {
+          totalCount: data.totalCount,
+          withdrawalsKeys: Object.keys(data.withdrawals || {}),
+          adminLiquidityCount: data.withdrawals?.adminLiquidity?.length || 0,
+          prizePoolCount: data.withdrawals?.prizePool?.length || 0,
+          lpRewardsCount: data.withdrawals?.lpRewards?.length || 0,
+          totals: data.totals,
+        });
+
         // Convert string amounts back to BigInt for internal use
         const withdrawalsWithBigInt = {
           adminLiquidity: (data.withdrawals?.adminLiquidity || []).map(
@@ -307,12 +317,58 @@ export function AdminWithdrawalsSection() {
               </Button>
             </div>
           ) : totalWithdrawals === 0 ? (
-            <div className="text-center py-4">
-              <Coins className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-600">No withdrawals available</p>
-              <p className="text-sm text-gray-500 mt-1">
-                Check back after creating markets or providing liquidity
+            <div className="text-center py-6">
+              <Coins className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                No withdrawals available
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Admin withdrawals will appear here after market resolution
               </p>
+
+              {/* Help guide */}
+              <div className="max-w-md mx-auto bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                <h4 className="font-medium text-blue-900 mb-2">
+                  💡 How to generate withdrawals:
+                </h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>
+                    • <strong>Create markets</strong> with initial liquidity
+                  </li>
+                  <li>
+                    • <strong>Wait for resolution</strong> - admin liquidity
+                    becomes claimable
+                  </li>
+                  <li>
+                    • <strong>Create free markets</strong> - unused prize pools
+                    become withdrawable
+                  </li>
+                  <li>
+                    • <strong>Provide liquidity</strong> - earn LP rewards from
+                    market fees
+                  </li>
+                </ul>
+              </div>
+
+              <div className="flex gap-3 mt-4 justify-center">
+                <Button
+                  onClick={() => (window.location.href = "/admin?tab=create")}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  size="sm"
+                >
+                  Create Market
+                </Button>
+                <Button
+                  onClick={() => {
+                    setError(null);
+                    fetchAdminWithdrawals();
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  Refresh
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
