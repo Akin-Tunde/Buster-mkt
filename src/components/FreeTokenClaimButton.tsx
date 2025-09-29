@@ -11,7 +11,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Loader2, Gift, Users } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { V2contractAddress, V2contractAbi } from "@/constants/contract";
+import {
+  PolicastViews,
+  PolicastViewsAbi,
+  V2contractAbi,
+  V2contractAddress,
+} from "@/constants/contract";
 import { formatPrice } from "@/lib/utils";
 
 interface FreeTokenClaimButtonProps {
@@ -56,13 +61,13 @@ export function FreeTokenClaimButton({
   const { data: claimStatus, refetch: refetchClaimStatus } = (
     useReadContract as any
   )({
-    address: V2contractAddress,
-    abi: V2contractAbi,
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
     functionName: "hasUserClaimedFreeTokens",
     args: [BigInt(marketId), address as `0x${string}`],
     query: {
       enabled: !!address,
-      refetchInterval: 5000, // Check every 5 seconds
+      refetchInterval: 5000,
     },
   });
 
@@ -75,12 +80,12 @@ export function FreeTokenClaimButton({
   // [4] remainingPrizePool (uint256)
   // [5] isActive (bool)
   const { data: freeMarketInfo } = (useReadContract as any)({
-    address: V2contractAddress,
-    abi: V2contractAbi,
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
     functionName: "getFreeMarketInfo",
     args: [BigInt(marketId)],
     query: {
-      refetchInterval: 10000, // Refresh every 10 seconds
+      refetchInterval: 10000,
     },
   });
 
