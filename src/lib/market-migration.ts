@@ -215,9 +215,12 @@ export async function fetchV2Market(marketId: number): Promise<MarketV2> {
     : BigInt(0n);
   const disputed = extendedMeta ? Boolean(extendedMeta[1]) : false;
   const validated = extendedMeta ? Boolean(extendedMeta[2]) : false;
+  // Use nullish coalescing consistently to avoid mixing '||' and '??' which
+  // TypeScript disallows without parentheses. Prefer `??` because zero/false
+  // could be valid values for some fields but here we want non-null defaults.
   const creator = extendedMeta
-    ? String(extendedMeta[3] ?? ((basicInfo && basicInfo[11]) || ""))
-    : String((basicInfo && basicInfo[11]) || "");
+    ? String(extendedMeta[3] ?? (basicInfo && basicInfo[11]) ?? "")
+    : String((basicInfo && basicInfo[11]) ?? "");
   const earlyResolutionAllowed = extendedMeta
     ? Boolean(extendedMeta[4])
     : Boolean((viewInfo && viewInfo[12]) || false);
