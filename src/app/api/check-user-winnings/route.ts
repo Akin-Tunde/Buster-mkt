@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
-import { V2contractAddress, V2contractAbi } from "@/constants/contract";
+import {
+  V2contractAddress,
+  V2contractAbi,
+  PolicastViews,
+  PolicastViewsAbi,
+} from "@/constants/contract";
 
 const publicClient = createPublicClient({
   chain: base,
@@ -34,21 +39,56 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid market ID" }, { status: 400 });
     }
 
-    // Check if user has winnings for this market
-    const params: any = {
-      address: V2contractAddress,
-      abi: V2contractAbi,
+    // Ensure the Views ABI contains getUserWinnings and call the Views contract
+    const abiHasFn =
+      Array.isArray(PolicastViewsAbi) &&
+      PolicastViewsAbi.some(
+        (f: any) => f.type === "function" && f.name === "getUserWinnings"
+      );
+
+    if (!abiHasFn) {
+      return NextResponse.json(
+        {
+          error:
+            'ABI missing "getUserWinnings" on PolicastViews. Verify PolicastViewsAbi in /src/constants/contract.ts',
+        },
+        { status: 500 }
+      );
+    }
+
+    // PolicastViews.getUserWinnings(address _user, uint256 _marketId)
+    const rawResult = (await (publicClient.readContract as any)({
+      address: PolicastViews,
+      abi: PolicastViewsAbi,
       functionName: "getUserWinnings",
-      args: [BigInt(marketIdNum), userAddress as `0x${string}`],
-    };
+      args: [userAddress as `0x${string}`, BigInt(marketIdNum)],
+    })) as unknown;
 
-    const result = (await (publicClient.readContract as any)(
-      params
-    )) as unknown;
-
-    const resArr = result as readonly any[];
-    const hasWinnings = Boolean(resArr[0]);
-    const amount = BigInt(resArr[1] ?? 0n);
+    // Normalize result into bigint safely (avoid passing an object to BigInt)
+    let amount = 0n;
+    if (typeof rawResult === "bigint") {
+      amount = rawResult;
+    } else if (typeof rawResult === "number") {
+      amount = BigInt(Math.trunc(rawResult));
+    } else if (typeof rawResult === "string") {
+      try {
+        amount = BigInt(rawResult);
+      } catch {
+        amount = 0n;
+      }
+    } else if (rawResult && typeof (rawResult as any).toString === "function") {
+      const s = (rawResult as any).toString();
+      if (/^\d+$/.test(s)) {
+        try {
+          amount = BigInt(s);
+        } catch {
+          amount = 0n;
+        }
+      }
+    } else {
+      amount = 0n;
+    }
+    const hasWinnings = amount > 0n;
 
     return NextResponse.json({
       hasWinnings,
