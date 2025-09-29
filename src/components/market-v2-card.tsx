@@ -168,6 +168,11 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     args: [BigInt(index)],
   });
 
+  // Debug marketInfo
+  useEffect(() => {
+    console.log(`[MarketV2Card] market ${index} marketInfo:`, marketInfo);
+  }, [marketInfo, index]);
+
   // Fetch explicit market type (more reliable than positional index)
   const { data: marketTypeData } = useReadContract({
     address: PolicastViews,
@@ -226,9 +231,20 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   // Fetch options data with real-time prices
   useEffect(() => {
     const fetchOptions = async () => {
-      if (!marketInfo) return;
+      if (!marketInfo) {
+        console.log(
+          `[MarketV2Card] market ${index} - marketInfo not available yet`
+        );
+        return;
+      }
 
       const optionCount = Number(marketInfo[4]); // optionCount from getMarketInfo
+      console.log(
+        `[MarketV2Card] market ${index} - optionCount: ${optionCount}`
+      );
+      console.log(
+        `[MarketV2Card] market ${index} - fetching ${optionCount} options`
+      );
       const optionsData: MarketOption[] = [];
       let totalVol = 0n;
 
@@ -244,6 +260,13 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
               args: [BigInt(index), BigInt(i)],
             }).catch(() => null), // Fallback if calculateCurrentPrice fails
           ]);
+
+          console.log(
+            `[MarketV2Card] market ${index} option ${i} - API response:`,
+            optionResponse.ok,
+            "Contract price:",
+            priceData
+          );
 
           if (optionResponse.ok) {
             const option = await optionResponse.json();
@@ -266,12 +289,23 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
               isActive: option.isActive,
             });
             totalVol += BigInt(option.totalVolume);
+          } else {
+            console.error(
+              `[MarketV2Card] market ${index} option ${i} - API call failed:`,
+              optionResponse.status
+            );
           }
         } catch (error) {
-          console.error(`Error fetching option ${i}:`, error);
+          console.error(
+            `[MarketV2Card] market ${index} option ${i} - Error fetching option:`,
+            error
+          );
         }
       }
 
+      console.log(
+        `[MarketV2Card] market ${index} - fetched ${optionsData.length} options successfully`
+      );
       setOptions(optionsData);
       setTotalVolume(totalVol);
     };
@@ -302,19 +336,33 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   const isExpired = new Date(Number(market.endTime) * 1000) < new Date();
   const isResolved = market.resolved;
 
+  console.log(`[MarketV2Card] market ${index} expiration check:`, {
+    endTime: market.endTime,
+    endTimeDate: new Date(Number(market.endTime) * 1000),
+    currentTime: new Date(),
+    isExpired,
+    isResolved,
+  });
+
   // Use contract-sourced validated status if available, otherwise fallback to market object
   const contractValidated = marketExtendedMeta ? marketExtendedMeta[2] : null;
   const isValidated =
     contractValidated !== null ? contractValidated : market.validated;
 
+  console.log(`[MarketV2Card] market ${index} validation details:`, {
+    marketExtendedMeta,
+    contractValidated,
+    marketValidated: market.validated,
+    isValidated,
+    marketInvalidated: market.invalidated,
+    isResolved,
+  });
+
   // Treat validation or resolution as authoritative over legacy invalidation flags
   // If the contract says it's validated or resolved, it's NOT invalidated regardless of server data
-  // Also don't show invalidated state if we haven't loaded contract validation data yet
+  // Only show invalidated if contract explicitly says not validated
   const isInvalidated =
-    Boolean(market.invalidated) &&
-    !isValidated &&
-    !isResolved &&
-    contractValidated !== null; // Only show invalidated if we have definitive contract data
+    contractValidated === false && Boolean(market.invalidated) && !isResolved;
 
   // Debug logging for invalidation logic
   console.debug(`[MarketV2Card] market ${index} status check:`, {
@@ -325,10 +373,13 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     isResolved,
     isExpired,
     finalIsInvalidated: isInvalidated,
+    marketInfo: marketInfo,
+    optionsCount: options.length,
   });
 
   // If market is invalidated, show special message instead of normal UI
   if (isInvalidated) {
+    console.log(`[MarketV2Card] market ${index} - showing invalidated UI`);
     return (
       <Card key={index} className="flex flex-col border-red-200 bg-red-50">
         <CardHeader>
@@ -413,6 +464,10 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   const typedUserShares = (userShares as unknown as readonly bigint[]) || [];
   const hasShares =
     typedUserShares && typedUserShares.some((shares) => shares > 0n);
+
+  console.log(
+    `[MarketV2Card] market ${index} - showing normal UI, options: ${options.length}, isExpired: ${isExpired}, isResolved: ${isResolved}`
+  );
 
   return (
     <Card key={index} className="flex flex-col">

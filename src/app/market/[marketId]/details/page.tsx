@@ -329,16 +329,18 @@ export default async function MarketDetailsPage({ params }: Props) {
       transport: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL),
     });
 
-    const marketResult = await fetchMarketData(marketId, publicClient);
+    // Use the shared migration fetch which already implements consistent
+    // V1/V2 detection and selection across the app.
+    const marketResult = await fetchMarketDataFromMigration(Number(marketId));
     console.log(
       `Market ${marketId} detected as version:`,
       marketResult.version
     );
 
     let market: any;
-
     if (marketResult.version === "v1") {
-      const marketData = marketResult.data as MarketInfoV1ContractReturn;
+      const marketData =
+        marketResult.market as any as MarketInfoV1ContractReturn;
       market = {
         question: marketData[0],
         optionA: marketData[1],
@@ -353,7 +355,8 @@ export default async function MarketDetailsPage({ params }: Props) {
       };
       console.log(`Market ${marketId} V1 data:`, market);
     } else {
-      const marketData = marketResult.data as MarketInfoV2ContractReturn;
+      const marketData =
+        marketResult.market as any as MarketInfoV2ContractReturn;
 
       // Fetch all options for this V2 market
       const optionCount = Number(marketData[4]);
@@ -400,11 +403,15 @@ export default async function MarketDetailsPage({ params }: Props) {
         version: "v2",
         options,
         optionShares,
-        marketType: marketResult.marketType,
+        marketType:
+          (marketResult as any).marketType ??
+          (marketResult.market as any)?.marketType ??
+          0,
       };
       console.log(`Market ${marketId} V2 data:`, market);
     }
 
+    // Use the market object built above, which already selects V2 if active
     return <MarketDetailsClient marketId={marketId} market={market} />;
   } catch (error) {
     console.error(`Failed to fetch market ${marketId}:`, error);
