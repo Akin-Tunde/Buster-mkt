@@ -160,27 +160,6 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   const [options, setOptions] = useState<MarketOption[]>([]);
   const [totalVolume, setTotalVolume] = useState<bigint>(0n);
 
-  // Log server-provided options for debugging missing UI
-  useEffect(() => {
-    try {
-      const serverOptions = (market as any).options;
-      console.debug(
-        `[MarketV2Card] market ${index} - server-provided options:`,
-        {
-          optionCount: (market as any).optionCount,
-          optionsLength: Array.isArray(serverOptions)
-            ? serverOptions.length
-            : 0,
-          optionsSample: Array.isArray(serverOptions)
-            ? serverOptions.slice(0, 3)
-            : [],
-        }
-      );
-    } catch (e) {
-      /* ignore */
-    }
-  }, [market, index]);
-
   // Fetch full market info (legacy multi-field tuple)
   const { data: marketInfo } = useReadContract({
     address: PolicastViews,
@@ -189,24 +168,11 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     args: [BigInt(index)],
   });
 
-  // Debug marketInfo
-  useEffect(() => {
-    console.log(`[MarketV2Card] market ${index} marketInfo:`, marketInfo);
-  }, [marketInfo, index]);
-
   // Fetch explicit market type (more reliable than positional index)
   const { data: marketTypeData } = useReadContract({
     address: PolicastViews,
     abi: PolicastViewsAbi,
     functionName: "getMarketType",
-    args: [BigInt(index)],
-  });
-
-  // Fetch market extended metadata to get validated status directly from contract
-  const { data: marketExtendedMeta } = useReadContract({
-    address: V2contractAddress,
-    abi: V2contractAbi,
-    functionName: "getMarketExtendedMeta",
     args: [BigInt(index)],
   });
 
@@ -249,53 +215,12 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     query: { enabled: !!address },
   });
 
-  // Fetch options data. Prefer server-provided `market.options` when available
-  // because it's the canonical shape the app builds (and avoids timing issues
-  // where on-chain `getMarketInfo` is not yet available or returns legacy
-  // positional values).
+  // Fetch options data with real-time prices
   useEffect(() => {
     const fetchOptions = async () => {
-      // If the server-provided market already includes options, use them first
-      if (
-        market.options &&
-        Array.isArray(market.options) &&
-        market.options.length > 0
-      ) {
-        console.debug(
-          `[MarketV2Card] market ${index} - initializing options from server-provided market.options: ${market.options.length}`
-        );
-
-        const mapped = market.options.map((opt: any, i: number) => ({
-          name: opt.name ?? `Option ${i + 1}`,
-          description: opt.description ?? "",
-          totalShares: BigInt(opt.totalShares ?? 0),
-          totalVolume: BigInt(opt.totalVolume ?? 0),
-          currentPrice: BigInt(opt.currentPrice ?? 0),
-          isActive: typeof opt.isActive === "boolean" ? opt.isActive : true,
-        }));
-
-        setOptions(mapped);
-        setTotalVolume(
-          mapped.reduce((acc, o) => acc + (o.totalVolume ?? 0n), 0n)
-        );
-        return;
-      }
-
-      // Otherwise fall back to the legacy on-chain getMarketInfo path
-      if (!marketInfo) {
-        console.log(
-          `[MarketV2Card] market ${index} - marketInfo not available yet`
-        );
-        return;
-      }
+      if (!marketInfo) return;
 
       const optionCount = Number(marketInfo[4]); // optionCount from getMarketInfo
-      console.log(
-        `[MarketV2Card] market ${index} - optionCount: ${optionCount}`
-      );
-      console.log(
-        `[MarketV2Card] market ${index} - fetching ${optionCount} options`
-      );
       const optionsData: MarketOption[] = [];
       let totalVol = 0n;
 
@@ -311,13 +236,6 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
               args: [BigInt(index), BigInt(i)],
             }).catch(() => null), // Fallback if calculateCurrentPrice fails
           ]);
-
-          console.log(
-            `[MarketV2Card] market ${index} option ${i} - API response:`,
-            optionResponse.ok,
-            "Contract price:",
-            priceData
-          );
 
           if (optionResponse.ok) {
             const option = await optionResponse.json();
@@ -340,29 +258,18 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
               isActive: option.isActive,
             });
             totalVol += BigInt(option.totalVolume);
-          } else {
-            console.error(
-              `[MarketV2Card] market ${index} option ${i} - API call failed:`,
-              optionResponse.status
-            );
           }
         } catch (error) {
-          console.error(
-            `[MarketV2Card] market ${index} option ${i} - Error fetching option:`,
-            error
-          );
+          console.error(`Error fetching option ${i}:`, error);
         }
       }
 
-      console.log(
-        `[MarketV2Card] market ${index} - fetched ${optionsData.length} options successfully`
-      );
       setOptions(optionsData);
       setTotalVolume(totalVol);
     };
 
     fetchOptions();
-  }, [index, marketInfo, market.options]);
+  }, [index, marketInfo]);
 
   // Fetch comment count
   useEffect(() => {
@@ -386,51 +293,10 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   // Determine market status
   const isExpired = new Date(Number(market.endTime) * 1000) < new Date();
   const isResolved = market.resolved;
-
-  console.log(`[MarketV2Card] market ${index} expiration check:`, {
-    endTime: market.endTime,
-    endTimeDate: new Date(Number(market.endTime) * 1000),
-    currentTime: new Date(),
-    isExpired,
-    isResolved,
-  });
-
-  // Use contract-sourced validated status if available, otherwise fallback to market object
-  const contractValidated = marketExtendedMeta ? marketExtendedMeta[2] : null;
-  const isValidated =
-    contractValidated !== null ? contractValidated : market.validated;
-
-  console.log(`[MarketV2Card] market ${index} validation details:`, {
-    marketExtendedMeta,
-    contractValidated,
-    marketValidated: market.validated,
-    isValidated,
-    marketInvalidated: market.invalidated,
-    isResolved,
-  });
-
-  // Treat validation or resolution as authoritative over legacy invalidation flags
-  // If the contract says it's validated or resolved, it's NOT invalidated regardless of server data
-  // Only show invalidated if contract explicitly says not validated
-  const isInvalidated =
-    contractValidated === false && Boolean(market.invalidated) && !isResolved;
-
-  // Debug logging for invalidation logic
-  console.debug(`[MarketV2Card] market ${index} status check:`, {
-    marketInvalidated: market.invalidated,
-    marketValidated: market.validated,
-    contractValidated,
-    isValidated,
-    isResolved,
-    isExpired,
-    finalIsInvalidated: isInvalidated,
-    marketInfo: marketInfo,
-    optionsCount: options.length,
-  });
+  const isInvalidated = market.invalidated;
 
   // If market is invalidated, show special message instead of normal UI
   if (isInvalidated) {
-    console.log(`[MarketV2Card] market ${index} - showing invalidated UI`);
     return (
       <Card key={index} className="flex flex-col border-red-200 bg-red-50">
         <CardHeader>
@@ -516,10 +382,6 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   const hasShares =
     typedUserShares && typedUserShares.some((shares) => shares > 0n);
 
-  console.log(
-    `[MarketV2Card] market ${index} - showing normal UI, options: ${options.length}, isExpired: ${isExpired}, isResolved: ${isResolved}`
-  );
-
   return (
     <Card key={index} className="flex flex-col">
       <CardHeader>
@@ -568,17 +430,13 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
               />
             </div>
           )}
-        {options.length > 0 ? (
+        {options.length > 0 && (
           <MultiOptionProgress
             marketId={index}
             options={options}
             totalVolume={totalVolume}
             className="mb-4"
           />
-        ) : (
-          <div className="mb-4 text-sm text-gray-500">
-            Options not available yet.
-          </div>
         )}
 
         {isExpired ? (

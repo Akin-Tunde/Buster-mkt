@@ -355,60 +355,87 @@ export default async function MarketDetailsPage({ params }: Props) {
       };
       console.log(`Market ${marketId} V1 data:`, market);
     } else {
-      const marketData =
-        marketResult.market as any as MarketInfoV2ContractReturn;
+      // The migration fetcher may return either a raw contract tuple (MarketInfoV2ContractReturn)
+      // or a pre-parsed MarketV2 object. Handle both shapes.
+      const raw = marketResult.market as any;
 
-      // Fetch all options for this V2 market
-      const optionCount = Number(marketData[4]);
-      const options: string[] = [];
-      const optionShares: bigint[] = [];
+      // If it's already parsed by migration (has options array), use it directly
+      if (raw && Array.isArray(raw.options)) {
+        // Defensive normalization: ensure optionShares exists and marketType is a safe number
+        market = {
+          question: raw.question,
+          description: raw.description,
+          endTime: raw.endTime,
+          category: raw.category,
+          optionCount: Number(raw.optionCount ?? raw.options.length ?? 0),
+          resolved: Boolean(raw.resolved),
+          disputed: Boolean(raw.disputed),
+          winningOptionId: Number(
+            raw.winningOptionId ?? raw.winningOption ?? 0
+          ),
+          creator: raw.creator,
+          earlyResolutionAllowed: Boolean(raw.earlyResolutionAllowed ?? false),
+          version: "v2",
+          options: raw.options,
+          optionShares: Array.isArray(raw.optionShares) ? raw.optionShares : [],
+          marketType:
+            Number((marketResult as any).marketType ?? raw.marketType ?? 0) ||
+            0,
+        };
+        console.log(`Market ${marketId} V2 pre-parsed data:`, market);
+      } else {
+        // Otherwise treat it as the raw contract tuple and fetch options ourselves
+        const marketData = raw as MarketInfoV2ContractReturn;
 
-      for (let i = 0; i < optionCount; i++) {
-        try {
-          const optionData = await publicClient.readContract({
-            address: V2contractAddress,
-            abi: V2contractAbi,
-            functionName: "getMarketOption",
-            args: [BigInt(marketId), BigInt(i)],
-          });
+        // Fetch all options for this V2 market
+        const optionCount = Number(marketData[4]);
+        const options: string[] = [];
+        const optionShares: bigint[] = [];
 
-          const [name, , totalShares] = optionData as [
-            string,
-            string,
-            bigint,
-            bigint,
-            bigint,
-            boolean
-          ];
-          options.push(name);
-          optionShares.push(totalShares);
-        } catch (error) {
-          console.error(`Error fetching option ${i}:`, error);
-          options.push(`Option ${i + 1}`);
-          optionShares.push(0n);
+        for (let i = 0; i < optionCount; i++) {
+          try {
+            const optionData = await publicClient.readContract({
+              address: V2contractAddress,
+              abi: V2contractAbi,
+              functionName: "getMarketOption",
+              args: [BigInt(marketId), BigInt(i)],
+            });
+
+            const [name, , totalShares] = optionData as [
+              string,
+              string,
+              bigint,
+              bigint,
+              bigint,
+              boolean
+            ];
+            options.push(name);
+            optionShares.push(totalShares);
+          } catch (error) {
+            console.error(`Error fetching option ${i}:`, error);
+            options.push(`Option ${i + 1}`);
+            optionShares.push(0n);
+          }
         }
-      }
 
-      market = {
-        question: marketData[0],
-        description: marketData[1],
-        endTime: marketData[2],
-        category: marketData[3],
-        optionCount: optionCount,
-        resolved: marketData[5],
-        disputed: marketData[6],
-        winningOptionId: Number(marketData[7]),
-        creator: marketData[8],
-        earlyResolutionAllowed: marketData[9], // Add missing field
-        version: "v2",
-        options,
-        optionShares,
-        marketType:
-          (marketResult as any).marketType ??
-          (marketResult.market as any)?.marketType ??
-          0,
-      };
-      console.log(`Market ${marketId} V2 data:`, market);
+        market = {
+          question: marketData[0],
+          description: marketData[1],
+          endTime: marketData[2],
+          category: marketData[3],
+          optionCount: optionCount,
+          resolved: marketData[5],
+          disputed: marketData[6],
+          winningOptionId: Number(marketData[7]),
+          creator: marketData[8],
+          earlyResolutionAllowed: marketData[9], // Add missing field
+          version: "v2",
+          options,
+          optionShares,
+          marketType: Number((marketResult as any).marketType ?? 0) || 0,
+        };
+        console.log(`Market ${marketId} V2 data:`, market);
+      }
     }
 
     // Use the market object built above, which already selects V2 if active
