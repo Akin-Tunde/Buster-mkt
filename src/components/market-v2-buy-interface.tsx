@@ -949,8 +949,17 @@ export function MarketV2BuyInterface({
               }`,
             });
 
-            // Refetch option data to update UI
+            // REFRESH LOCAL HOOKS
             refetchOptionData();
+
+            // Notify other components (parent card, analytics, progress) to refresh
+            try {
+              window.dispatchEvent(
+                new CustomEvent("market-updated", { detail: { marketId } })
+              );
+            } catch (e) {
+              console.debug("market-updated event dispatch failed", e);
+            }
           } else if (
             approvalReceipt?.status === "success" &&
             purchaseReceipt?.status !== "success"
@@ -973,6 +982,7 @@ export function MarketV2BuyInterface({
             setBuyingStep("initial");
           }
         } else if (receipts && receipts.length === 1) {
+          // on single-receipt success also notify
           // Some wallets might return only 1 receipt even for successful batch
           const singleReceipt = receipts[0];
 
@@ -995,6 +1005,13 @@ export function MarketV2BuyInterface({
               }`,
             });
             refetchOptionData();
+            try {
+              window.dispatchEvent(
+                new CustomEvent("market-updated", { detail: { marketId } })
+              );
+            } catch (e) {
+              console.debug("market-updated event dispatch failed", e);
+            }
           } else {
             console.warn("⚠️ V2 Single receipt but not successful");
             setBuyingStep("batchPartialSuccess");
@@ -1020,6 +1037,13 @@ export function MarketV2BuyInterface({
               }`,
             });
             refetchOptionData();
+            try {
+              window.dispatchEvent(
+                new CustomEvent("market-updated", { detail: { marketId } })
+              );
+            } catch (e) {
+              console.debug("market-updated event dispatch failed", e);
+            }
           } else {
             console.warn("⚠️ V2 Some receipts failed");
             setBuyingStep("batchPartialSuccess");
@@ -1037,9 +1061,18 @@ export function MarketV2BuyInterface({
             }`,
           });
           refetchOptionData();
+          try {
+            window.dispatchEvent(
+              new CustomEvent("market-updated", { detail: { marketId } })
+            );
+          } catch (e) {
+            console.debug("market-updated event dispatch failed", e);
+          }
         }
         setIsProcessing(false);
       } else if (callsStatusData.status === "failure") {
+        // on partial/failure cases where purchase might still succeed, you may still want to notify —
+        // keep existing handling but consider dispatching event if you detect success in receipts.
         const receipts = callsStatusData.receipts;
 
         console.log(
@@ -1149,7 +1182,6 @@ export function MarketV2BuyInterface({
         setIsProcessing(false);
       } else if (callsStatusData.status === "pending") {
         console.log("⏳ V2 Batch calls still pending...");
-        // Keep waiting, the hook will refetch
       }
     }
 

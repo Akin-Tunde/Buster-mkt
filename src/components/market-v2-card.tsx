@@ -254,6 +254,7 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
 
   // Fetch options data with real-time prices
   useEffect(() => {
+    let mounted = true;
     const fetchOptions = async () => {
       if (!marketInfo) return;
 
@@ -301,11 +302,32 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
         }
       }
 
-      setOptions(optionsData);
-      setTotalVolume(totalVol);
+      if (mounted) {
+        setOptions(optionsData);
+        setTotalVolume(totalVol);
+      }
     };
 
+    // run once now
     fetchOptions();
+
+    // Listen for global market-updated events and refresh only if it matches this market
+    const handler = (e: Event) => {
+      try {
+        const ev = e as CustomEvent;
+        if (ev?.detail?.marketId === index) {
+          fetchOptions();
+        }
+      } catch (err) {
+        console.debug("market-updated handler error", err);
+      }
+    };
+    window.addEventListener("market-updated", handler);
+
+    return () => {
+      mounted = false;
+      window.removeEventListener("market-updated", handler);
+    };
   }, [index, marketInfo]);
 
   // Fetch comment count
