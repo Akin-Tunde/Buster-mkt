@@ -396,6 +396,7 @@ export default async function MarketDetailsPage({ params }: Props) {
         disputed: marketData[6],
         winningOptionId: Number(marketData[7]),
         creator: marketData[8],
+        earlyResolutionAllowed: marketData[9], // Add missing field
         version: "v2",
         options,
         optionShares,

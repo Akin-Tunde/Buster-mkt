@@ -253,7 +253,7 @@ export function ModernAdminDashboard() {
                 <p className="text-xs md:text-sm font-medium text-muted-foreground">
                   Market System
                 </p>
-                <p className="text-lg md:text-2xl font-bold">LMSR v3</p>
+                <p className="text-lg md:text-2xl font-bold">Policast</p>
               </div>
               <Activity className="h-6 w-6 md:h-8 md:w-8 text-orange-600" />
             </div>

@@ -113,6 +113,12 @@ export function MarketDetailsClient({
   marketId,
   market,
 }: MarketDetailsClientProps) {
+  // Debug logging for market data
+  console.log(`[MarketDetailsClient] Loading market ${marketId}:`, market);
+  console.log(
+    `[MarketDetailsClient] Market version: ${market.version}, marketType: ${market.marketType}`
+  );
+
   const { isCreator, isLP, isFeeCollector, checkCreatorStatus, checkLPStatus } =
     useV3UserRoles();
   const [userRoles, setUserRoles] = useState({
@@ -369,8 +375,10 @@ export function MarketDetailsClient({
                     description: market.description || market.question,
                     endTime: market.endTime,
                     category: convertToMarketCategory(market.category),
-                    marketType: 0, // PAID market type
-                    optionCount: BigInt(market.options?.length || 2),
+                    marketType: market.marketType || 0, // Use actual marketType from contract
+                    optionCount: BigInt(
+                      market.optionCount || market.options?.length || 2
+                    ),
                     options: (market.options || []).map((option, index) => ({
                       name: option || `Option ${index + 1}`,
                       description: option || `Option ${index + 1}`,
