@@ -9,9 +9,9 @@ export const publicClient = createPublicClient({
 
 export const contractAddress = "0xd24261cD87Ac11A8961a2d5df7036ad87ca7F02A";
 export const tokenAddress = "0x53Bd7F868764333de01643ca9102ee4297eFA3cb";
-export const V2contractAddress = "0x4aD26B13F192f2B33B4eA6c4619EF9A04515ED60";
-export const PolicastViews = "0x93C21b632E9B612221F3eE115bD13556d92F3D9A";
-export const FreeClaimHandler = "0xd95bE66B1F01b1483ef1C692d62B284e9a0979A3";
+export const V2contractAddress = "0x5A10EF3049240b005717dCa2cf970e2cB371b596";
+export const PolicastViews = "0x23a3593cAE50c8beC5a6009EAB9131BADf84C8fe";
+export const FreeClaimHandler = "0x357bAa77f0D54e06d0be46E35B0867AE01641569";
 
 // V1 Contract ABI for binary markets (legacy)
 export const contractAbi = [
@@ -3384,6 +3384,19 @@ export const FreeClaimHandlerabi = [
   },
   {
     type: "function",
+    name: "getMarketLMSRDetails",
+    inputs: [
+      { name: "marketId", type: "uint256", internalType: "uint256" },
+      { name: "market", type: "address", internalType: "address" },
+    ],
+    outputs: [
+      { name: "", type: "uint256", internalType: "uint256" },
+      { name: "", type: "uint256", internalType: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "getRoleAdmin",
     inputs: [{ name: "role", type: "bytes32", internalType: "bytes32" }],
     outputs: [{ name: "", type: "bytes32", internalType: "bytes32" }],
@@ -3578,7 +3591,9 @@ export const FreeClaimHandlerabi = [
   { type: "error", name: "FreeEntryInactive", inputs: [] },
   { type: "error", name: "FreeSlotseFull", inputs: [] },
   { type: "error", name: "InsufficientPrizePool", inputs: [] },
+  { type: "error", name: "MarketMovedTooMuch", inputs: [] },
   { type: "error", name: "NoContractsAllowed", inputs: [] },
+  { type: "error", name: "NoSharesAffordable", inputs: [] },
   {
     type: "error",
     name: "PRBMath_UD60x18_Exp2_InputTooBig",
@@ -3597,6 +3612,7 @@ export const FreeClaimHandlerabi = [
   { type: "error", name: "PriceInvariant", inputs: [] },
   { type: "error", name: "ReentrancyGuardReentrantCall", inputs: [] },
   { type: "error", name: "SlippageExceeded", inputs: [] },
+  { type: "error", name: "TransferFailed", inputs: [] },
 ] as const;
 
 export const contract = getContract({
