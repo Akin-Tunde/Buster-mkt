@@ -18,11 +18,13 @@ import {
   PolicastViews,
   PolicastViewsAbi,
 } from "@/constants/contract";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { MultiOptionProgress } from "./multi-option-progress";
 import MarketTime from "./market-time";
 import { MarketResolved } from "./market-resolved";
 import { MarketPending } from "./market-pending";
 import { MarketV2BuyInterface } from "./market-v2-buy-interface";
+import { MarketV2SellInterface } from "./MarketV2SellInterface";
 import { MarketV2SharesDisplay } from "./market-v2-shares-display";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -159,6 +161,7 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   const [commentCount, setCommentCount] = useState<number>(0);
   const [options, setOptions] = useState<MarketOption[]>([]);
   const [totalVolume, setTotalVolume] = useState<bigint>(0n);
+  const [activeInterface, setActiveInterface] = useState<"buy" | "sell">("buy");
   // Derived displayOptions: prefer detailed `options` (from /api) but fall back
   // to a lightweight representation built from the passed-in `market` so the
   // progress UI and other consumers can render immediately.
@@ -613,7 +616,54 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
             <MarketPending />
           )
         ) : (
-          <MarketV2BuyInterface marketId={index} market={market} />
+          <div className="space-y-3">
+            {/* Buy/Sell Toggle */}
+            <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+              <button
+                onClick={() => setActiveInterface("buy")}
+                className={`flex-1 text-xs py-1.5 px-3 rounded-md transition-colors flex items-center justify-center gap-1 ${
+                  activeInterface === "buy"
+                    ? "bg-white dark:bg-gray-700 font-medium text-blue-600 dark:text-blue-400 shadow-sm"
+                    : "text-gray-600 dark:text-gray-400"
+                }`}
+              >
+                <TrendingUp className="h-3 w-3" /> Buy
+              </button>
+              <button
+                onClick={() => setActiveInterface("sell")}
+                className={`flex-1 text-xs py-1.5 px-3 rounded-md transition-colors flex items-center justify-center gap-1 ${
+                  activeInterface === "sell"
+                    ? "bg-white dark:bg-gray-700 font-medium text-red-600 dark:text-red-400 shadow-sm"
+                    : "text-gray-600 dark:text-gray-400"
+                }`}
+              >
+                <TrendingDown className="h-3 w-3" /> Sell
+              </button>
+            </div>
+
+            {/* Conditional Interface */}
+            {activeInterface === "buy" ? (
+              <MarketV2BuyInterface marketId={index} market={market} />
+            ) : (
+              <MarketV2SellInterface
+                marketId={index}
+                market={market}
+                userShares={Object.fromEntries(
+                  ((userShares as readonly bigint[]) || []).map(
+                    (shares, idx) => [idx, shares]
+                  )
+                )}
+                onSellComplete={() => {
+                  // Trigger event to refresh market data
+                  window.dispatchEvent(
+                    new CustomEvent("market-updated", {
+                      detail: { marketId: index },
+                    })
+                  );
+                }}
+              />
+            )}
+          </div>
         )}
       </CardContent>
 

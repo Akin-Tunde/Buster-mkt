@@ -26,6 +26,7 @@ import { Loader2, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { MarketV2 } from "@/types/types";
+import { MarketV2SharesDisplay } from "./market-v2-shares-display";
 
 interface MarketV2SellInterfaceProps {
   marketId: number;
@@ -401,6 +402,27 @@ export function MarketV2SellInterface({
           <TrendingDown className="h-3 w-3 md:h-4 md:w-4" />
           <span className="font-medium text-sm md:text-base">Sell Shares</span>
         </div>
+
+        {/* User's current shares display */}
+        {Object.values(userShares).some((shares) => shares > 0n) && (
+          <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-md border">
+            <MarketV2SharesDisplay
+              market={market}
+              userShares={Object.values(userShares) as readonly bigint[]}
+              options={market.options.map((opt, idx) => ({
+                name:
+                  typeof opt === "string"
+                    ? opt
+                    : opt.name || `Option ${idx + 1}`,
+                description: "",
+                totalShares: 0n,
+                totalVolume: 0n,
+                currentPrice: 0n,
+                isActive: true,
+              }))}
+            />
+          </div>
+        )}
 
         {/* Error Display */}
         {error && (

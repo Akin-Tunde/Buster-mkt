@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Policast - Prediction Market</title>
+    <link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect" />
+    <link
+      as="style"
+      href="https://fonts.googleapis.com/css2?display=swap&amp;family=Manrope%3Awght%40400%3B500%3B700%3B800&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900"
+      onload="this.rel='stylesheet'"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#137fec",
+              "background-light": "#f6f7f8",
+              "background-dark": "#101922",
+            },
+            fontFamily: { display: "Manrope" },
+            borderRadius: {
+              DEFAULT: "0.5rem",
+              lg: "1rem",
+              xl: "1.5rem",
+              full: "9999px",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        min-height: max(884px, 100dvh);
+      }
+    </style>
+  </head>
+  <body
+    class="bg-background-light dark:bg-background-dark font-display text-slate-800 dark:text-slate-200"
+  >
+    <div class="max-w-md mx-auto">
+      <div
+        class="relative flex min-h-screen w-full flex-col bg-background-light dark:bg-background-dark"
+      >
+        <header
+          class="sticky top-0 z-10 flex items-center justify-between bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm p-4 border-b border-slate-200 dark:border-slate-800"
+        >
+          <button class="text-slate-800 dark:text-slate-200">
+            <svg
+              fill="currentColor"
+              height="24px"
+              viewbox="0 0 256 256"
+              width="24px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"
+              ></path>
+            </svg>
+          </button>
+          <h1
+            class="text-lg font-bold text-slate-900 dark:text-white absolute left-1/2 -translate-x-1/2"
+          >
+            Market
+          </h1>
+        </header>
+        <main class="flex-1 overflow-y-auto">
+          <div class="p-4 bg-white dark:bg-slate-900/50">
+            <div class="flex flex-col gap-4">
+              <div class="space-y-2">
+                <h2 class="text-xl font-bold text-slate-900 dark:text-white">
+                  Will the US economy enter a recession by the end of 2024?
+                </h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400">
+                  This market predicts whether the US economy will experience a
+                  recession, defined as two consecutive quarters of negative GDP
+                  growth, by December 31, 2024...
+                </p>
+                <p class="text-xs text-slate-400 dark:text-slate-500">
+                  Ends in 2d 12h
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <span
+                  class="px-3 py-1 text-xs font-semibold rounded-full bg-primary/10 text-primary"
+                  >Politics</span
+                >
+                <span
+                  class="px-3 py-1 text-xs font-semibold rounded-full bg-primary/10 text-primary"
+                  >Economics</span
+                >
+                <span
+                  class="px-3 py-1 text-xs font-semibold rounded-full bg-green-500/10 text-green-500"
+                  >Free</span
+                >
+                <span
+                  class="px-3 py-1 text-xs font-semibold rounded-full bg-red-500/10 text-red-500"
+                  >ER</span
+                >
+              </div>
+            </div>
+            <div class="mt-6 space-y-4">
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <span
+                    class="text-sm font-semibold text-slate-900 dark:text-white"
+                    >Yes</span
+                  >
+                  <span class="text-sm font-bold text-primary">60¢</span>
+                </div>
+                <div
+                  class="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2"
+                >
+                  <div
+                    class="bg-primary h-2 rounded-full"
+                    style="width: 60%"
+                  ></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <span
+                    class="text-sm font-semibold text-slate-900 dark:text-white"
+                    >No</span
+                  >
+                  <span class="text-sm font-bold text-primary">40¢</span>
+                </div>
+                <div
+                  class="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2"
+                >
+                  <div
+                    class="bg-slate-400 dark:bg-slate-600 h-2 rounded-full"
+                    style="width: 40%"
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="bg-background-light dark:bg-background-dark sticky top-[73px] z-10"
+          >
+            <div class="border-b border-slate-200 dark:border-slate-800">
+              <nav aria-label="Tabs" class="flex px-4 gap-4">
+                <a
+                  class="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap border-b-2 border-primary px-1 py-3 text-sm font-semibold text-primary"
+                  href="#"
+                  >Buy</a
+                >
+                <a
+                  class="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap border-b-2 border-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:border-slate-300 dark:text-slate-400 dark:hover:border-slate-700"
+                  href="#"
+                  >Sell</a
+                >
+              </nav>
+            </div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div>
+              <label class="sr-only" for="amount">Amount</label>
+              <div class="relative">
+                <input
+                  class="w-full h-14 pl-4 pr-16 rounded-lg text-slate-900 dark:text-white bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:ring-primary focus:border-primary"
+                  id="amount"
+                  placeholder="$0.00"
+                  type="text"
+                />
+                <div class="absolute inset-y-0 right-0 flex items-center pr-4">
+                  <span
+                    class="text-sm font-medium text-slate-500 dark:text-slate-400"
+                    >USD</span
+                  >
+                </div>
+              </div>
+              <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+                Estimated shares: 0
+              </p>
+            </div>
+            <button
+              class="w-full h-12 px-6 rounded-lg bg-primary text-white font-bold text-sm"
+            >
+              Confirm
+            </button>
+          </div>
+          <div class="p-4 border-t border-slate-200 dark:border-slate-800">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">
+              Your Position
+            </h3>
+            <div class="bg-white dark:bg-slate-900/50 rounded-lg p-4 space-y-3">
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500 dark:text-slate-400">Yes</span>
+                <span class="font-medium text-slate-900 dark:text-white"
+                  >0 shares</span
+                >
+              </div>
+              <div class="flex justify-between text-sm">
+                <span class="text-slate-500 dark:text-slate-400">No</span>
+                <span class="font-medium text-slate-900 dark:text-white"
+                  >0 shares</span
+                >
+              </div>
+            </div>
+            <button
+              class="mt-4 w-full h-12 px-6 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-sm"
+            >
+              Manage Position
+            </button>
+          </div>
+          <div
+            class="p-4 border-t border-slate-200 dark:border-slate-800 grid grid-cols-3 gap-4 text-center"
+          >
+            <a
+              class="flex flex-col items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary"
+              href="#"
+            >
+              <div
+                class="flex items-center justify-center size-10 rounded-full bg-slate-100 dark:bg-slate-800/50"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20px"
+                  viewbox="0 0 256 256"
+                  width="20px"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128ZM84,116a12,12,0,1,0,12,12A12,12,0,0,0,84,116Zm88,0a12,12,0,1,0,12,12A12,12,0,0,0,172,116Zm60,12A104,104,0,0,1,79.12,219.82L45.07,231.17a16,16,0,0,1-20.24-20.24l11.35-34.05A104,104,0,1,1,232,128Zm-16,0A88,88,0,1,0,51.81,172.06a8,8,0,0,1,.66,6.54L40,216,77.4,203.53a7.85,7.85,0,0,1,2.53-.42,8,8,0,0,1,4,1.08A88,88,0,0,0,216,128Z"
+                  ></path>
+                </svg>
+              </div>
+              <p class="text-xs font-medium">12 comments</p>
+            </a>
+            <a
+              class="flex flex-col items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary"
+              href="#"
+            >
+              <div
+                class="flex items-center justify-center size-10 rounded-full bg-slate-100 dark:bg-slate-800/50"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20px"
+                  viewbox="0 0 256 256"
+                  width="20px"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V208a16,16,0,0,0,16,16H192a8,8,0,0,0,0-16Z"
+                  ></path>
+                </svg>
+              </div>
+              <p class="text-xs font-medium">Share</p>
+            </a>
+            <a
+              class="flex flex-col items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary"
+              href="#"
+            >
+              <div
+                class="flex items-center justify-center size-10 rounded-full bg-slate-100 dark:bg-slate-800/50"
+              >
+                <svg
+                  fill="currentColor"
+                  height="20px"
+                  viewbox="0 0 256 256"
+                  width="20px"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M128,24a104,104,0,1,0,104,104A104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm16-40a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176ZM112,88a12,12,0,1,1,12,12A12,12,0,0,1,112,88Z"
+                  ></path>
+                </svg>
+              </div>
+              <p class="text-xs font-medium">View Details</p>
+            </a>
+          </div>
+        </main>
+        <footer
+          class="sticky bottom-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm border-t border-slate-200 dark:border-slate-800"
+        >
+          <nav class="flex justify-around py-2">
+            <a
+              class="flex flex-col items-center gap-1 w-full text-primary"
+              href="#"
+            >
+              <svg
+                fill="currentColor"
+                height="24px"
+                viewbox="0 0 256 256"
+                width="24px"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M248,128a8,8,0,0,1-8,8H16a8,8,0,0,1,0-16H240A8,8,0,0,1,248,128ZM88,88a8,8,0,0,0-8,8v88a8,8,0,0,0,16,0V96A8,8,0,0,0,88,88Zm80-8a8,8,0,0,0-16,0v96a8,8,0,0,0,16,0Z"
+                ></path>
+              </svg>
+              <span class="text-xs font-medium">Markets</span>
+            </a>
+            <a
+              class="flex flex-col items-center gap-1 w-full text-slate-500 dark:text-slate-400"
+              href="#"
+            >
+              <svg
+                fill="currentColor"
+                height="24px"
+                viewbox="0 0 256 256"
+                width="24px"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M216,56H176V48a24,24,0,0,0-24-24H104A24,24,0,0,0,80,48v8H40A16,16,0,0,0,24,72V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V72A16,16,0,0,0,216,56ZM96,48a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96ZM40,200V72H80v16a8,8,0,0,0,16,0V72h64v16a8,8,0,0,0,16,0V72h40V200Z"
+                ></path>
+              </svg>
+              <span class="text-xs font-medium">Portfolio</span>
+            </a>
+            <a
+              class="flex flex-col items-center gap-1 w-full text-slate-500 dark:text-slate-400"
+              href="#"
+            >
+              <svg
+                fill="currentColor"
+                height="24px"
+                viewbox="0 0 256 256"
+                width="24px"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Zm-88-88a8,8,0,0,1,8,8v24h24a8,8,0,0,1,0,16H128v24a8,8,0,0,1-16,0V152H88a8,8,0,0,1,0-16h24V112a8,8,0,0,1,8-8Z"
+                ></path>
+              </svg>
+              <span class="text-xs font-medium">Create</span>
+            </a>
+            <a
+              class="flex flex-col items-center gap-1 w-full text-slate-500 dark:text-slate-400"
+              href="#"
+            >
+              <svg
+                fill="currentColor"
+                height="24px"
+                viewbox="0 0 256 256"
+                width="24px"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216ZM48,184c7.7-13.24,16-43.92,16-80a64,64,0,1,1,128,0c0,36.05,8.28,66.73,16,80Z"
+                ></path>
+              </svg>
+              <span class="text-xs font-medium">Notifications</span>
+            </a>
+            <a
+              class="flex flex-col items-center gap-1 w-full text-slate-500 dark:text-slate-400"
+              href="#"
+            >
+              <svg
+                fill="currentColor"
+                height="24px"
+                viewbox="0 0 256 256"
+                width="24px"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"
+                ></path>
+              </svg>
+              <span class="text-xs font-medium">Settings</span>
+            </a>
+          </nav>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>
