@@ -131,6 +131,18 @@ export function UserStats() {
     query: { enabled: !!accountAddress },
   });
 
+  // Calculate unrealized P&L dynamically (the field in userPortfolios is never updated)
+  const { data: calculatedUnrealizedPnL } = useReadContract({
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
+    functionName: "calculateUnrealizedPnL",
+    args: [accountAddress!],
+    query: {
+      enabled: !!accountAddress,
+      refetchInterval: 30000, // Refetch every 30 seconds to keep it updated
+    },
+  });
+
   const fetchUserStats = useCallback(
     async (address: Address) => {
       setIsLoading(true);
@@ -215,7 +227,8 @@ export function UserStats() {
               ? {
                   totalInvested: v2PortfolioTuple[0],
                   totalWinnings: v2PortfolioTuple[1],
-                  unrealizedPnL: v2PortfolioTuple[2],
+                  unrealizedPnL:
+                    (calculatedUnrealizedPnL as bigint | undefined) ?? 0n, // Use calculated value
                   realizedPnL: v2PortfolioTuple[3],
                   tradeCount: Number(v2PortfolioTuple[4]),
                 }
@@ -476,7 +489,8 @@ export function UserStats() {
             ? {
                 totalInvested: v2PortfolioTuple[0],
                 totalWinnings: v2PortfolioTuple[1],
-                unrealizedPnL: v2PortfolioTuple[2],
+                unrealizedPnL:
+                  (calculatedUnrealizedPnL as bigint | undefined) ?? 0n, // Use calculated value
                 realizedPnL: v2PortfolioTuple[3],
                 tradeCount: Number(v2PortfolioTuple[4]),
               }
@@ -519,7 +533,7 @@ export function UserStats() {
         setIsLoading(false);
       }
     },
-    [toast, totalWinnings, v2PortfolioTuple]
+    [toast, totalWinnings, v2PortfolioTuple, calculatedUnrealizedPnL]
   );
 
   useEffect(() => {
