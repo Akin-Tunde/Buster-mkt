@@ -1,12 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  useAccount,
-  useSendCalls,
-  useWaitForTransactionReceipt,
-  useReadContract,
-} from "wagmi";
+import { useAccount, useSendCalls, useReadContract } from "wagmi";
 import { parseEther, encodeFunctionData } from "viem";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -84,11 +79,6 @@ export function CreateMarketV2() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [marketCreated, setMarketCreated] = useState(false);
 
-  // Gas estimation state
-  const [estimatedGas, setEstimatedGas] = useState<bigint | null>(null);
-  const [gasPrice, setGasPrice] = useState<bigint | null>(null);
-  const [isEstimatingGas, setIsEstimatingGas] = useState(false);
-
   // Transaction hooks
   const {
     sendCalls,
@@ -96,12 +86,6 @@ export function CreateMarketV2() {
     error: sendCallsError,
     isPending: sendCallsPending,
   } = useSendCalls();
-
-  // Watch batch transaction
-  const { isLoading: batchLoading, isSuccess: batchSuccess } =
-    useWaitForTransactionReceipt({
-      hash: sendCallsData?.id as `0x${string}` | undefined,
-    });
 
   // Handle transaction failures
   useEffect(() => {
@@ -116,14 +100,19 @@ export function CreateMarketV2() {
     }
   }, [sendCallsError, toast]);
 
-  // Handle transaction success
+  // Handle transaction success - detect when sendCalls returns data
   useEffect(() => {
-    if (batchSuccess) {
-      console.log("🎉 Batch transaction confirmed successfully!");
+    if (sendCallsData && !sendCallsError && isSubmitting) {
+      console.log("🎉 Market creation transaction sent successfully!");
       setIsSubmitting(false);
       setMarketCreated(true);
+      toast({
+        title: "Success",
+        description:
+          "Market created successfully! It may take a moment to appear.",
+      });
     }
-  }, [batchSuccess]);
+  }, [sendCallsData, sendCallsError, isSubmitting, toast]);
 
   // Check token allowance
   const { data: allowanceData } = useReadContract({
@@ -437,131 +426,6 @@ export function CreateMarketV2() {
     return true;
   };
 
-  const estimateGasCost = async () => {
-    if (!validateForm()) return;
-
-    setIsEstimatingGas(true);
-    try {
-      const durationInSeconds = Math.floor(parseFloat(duration) * 24 * 60 * 60);
-      const liquidityWei = parseEther(initialLiquidity);
-      const optionNames = options.map((opt) => opt.name);
-      const optionDescriptions = options.map((opt) => opt.description);
-
-      // Calculate required approval amount
-      let requiredApproval = liquidityWei; // Paid default = seed liquidity
-      if (marketType === MarketType.FREE_ENTRY) {
-        const tokensPerUser = parseEther(freeSharesPerUser || "0");
-        const maxParticipants = BigInt(maxFreeParticipants || "0");
-        const totalPrizePool = tokensPerUser * maxParticipants;
-        requiredApproval = liquidityWei + totalPrizePool;
-      }
-
-      // Prepare batch calls for gas estimation
-      const calls = [];
-
-      // Add approval call if needed
-      if (requiredApproval > currentAllowance) {
-        calls.push({
-          to: tokenAddress as `0x${string}`,
-          data: encodeFunctionData({
-            abi: tokenAbi,
-            functionName: "approve",
-            args: [V2contractAddress, requiredApproval],
-          }),
-        });
-      }
-
-      // Add market creation call (single helper builds overload-specific args)
-      const builtArgs = buildCreateMarketArgs();
-      // Narrow union for viem: if length === 10 it's free variant else paid
-      const createMarketCall = {
-        to: V2contractAddress as `0x${string}`,
-        data: encodeFunctionData({
-          abi: V2contractAbi,
-          functionName: "createMarket",
-          args:
-            builtArgs.length === 10
-              ? (builtArgs as [
-                  string,
-                  string,
-                  string[],
-                  string[],
-                  bigint,
-                  number,
-                  number,
-                  bigint,
-                  boolean,
-                  { maxFreeParticipants: bigint; tokensPerParticipant: bigint }
-                ])
-              : (builtArgs as [
-                  string,
-                  string,
-                  string[],
-                  string[],
-                  bigint,
-                  number,
-                  number,
-                  bigint,
-                  boolean
-                ]),
-        }),
-      };
-
-      calls.push(createMarketCall);
-
-      console.log("🔎 Estimating gas for batch with", calls.length, "calls");
-
-      // Estimate gas for each call individually and sum them
-      let totalGasEstimate = 0n;
-
-      if (typeof window !== "undefined" && window.ethereum) {
-        const provider = window.ethereum as any;
-
-        for (const call of calls) {
-          try {
-            const estimate: string = await provider.request({
-              method: "eth_estimateGas",
-              params: [
-                {
-                  to: call.to,
-                  data: call.data,
-                  from: address || undefined,
-                },
-              ],
-            });
-            totalGasEstimate += BigInt(estimate);
-          } catch (e) {
-            console.warn("Gas estimation failed for call:", call, e);
-          }
-        }
-
-        setEstimatedGas(totalGasEstimate);
-
-        // Also estimate gas price
-        const gasPriceEstimate = await provider.request({
-          method: "eth_gasPrice",
-        });
-        setGasPrice(BigInt(gasPriceEstimate));
-      }
-
-      console.log("⛽ Batch gas estimation completed:", {
-        totalGasLimit: totalGasEstimate.toString(),
-        gasPrice: gasPrice?.toString(),
-        callsCount: calls.length,
-      });
-    } catch (error) {
-      console.error("❌ Gas estimation failed:", error);
-      toast({
-        title: "Gas Estimation Failed",
-        description:
-          "Could not estimate batch transaction cost. The transaction may be too large.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsEstimatingGas(false);
-    }
-  };
-
   const handleSubmit = async () => {
     console.log("🚀 Starting batch market creation process...");
     console.log("📝 Form data:", {
@@ -606,7 +470,7 @@ export function CreateMarketV2() {
     }
 
     // Prevent multiple submissions
-    if (isSubmitting || sendCallsPending || batchLoading) {
+    if (isSubmitting || sendCallsPending) {
       console.warn(
         "⏳ Transaction already in progress, blocking new submission"
       );
@@ -1215,63 +1079,6 @@ export function CreateMarketV2() {
 
           <Separator />
 
-          {/* Gas Estimation */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-gray-500" />
-                <span className="font-medium">Estimated Gas Cost</span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={estimateGasCost}
-                disabled={isEstimatingGas || !isFormValidNoSideEffects()}
-              >
-                {isEstimatingGas ? (
-                  <>
-                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                    Estimating...
-                  </>
-                ) : (
-                  "Estimate Gas"
-                )}
-              </Button>
-            </div>
-
-            {estimatedGas && gasPrice && (
-              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
-                <div className="flex justify-between text-sm">
-                  <span>Gas Limit:</span>
-                  <span>{estimatedGas.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Gas Price:</span>
-                  <span>{(Number(gasPrice) / 1e9).toFixed(2)} Gwei</span>
-                </div>
-                <div className="flex justify-between font-medium text-blue-700 dark:text-blue-300">
-                  <span>Estimated Cost:</span>
-                  <span>
-                    ≈ {(Number(estimatedGas * gasPrice) / 1e18).toFixed(4)} ETH
-                  </span>
-                </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                  This is an estimate. Actual costs may vary based on network
-                  conditions.
-                </div>
-              </div>
-            )}
-
-            {!estimatedGas && !isEstimatingGas && (
-              <div className="text-xs text-gray-500 text-center py-2">
-                Click &quot;Estimate Gas&quot; to see transaction costs before
-                submitting
-              </div>
-            )}
-          </div>
-
-          <Separator />
-
           {/* Submit Button */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -1291,7 +1098,6 @@ export function CreateMarketV2() {
                 disabled={
                   isSubmitting ||
                   sendCallsPending ||
-                  batchLoading ||
                   (() => {
                     try {
                       const liquidity = parseEther(initialLiquidity || "0");
@@ -1315,7 +1121,7 @@ export function CreateMarketV2() {
                 }
                 className="min-w-[120px]"
               >
-                {isSubmitting || sendCallsPending || batchLoading ? (
+                {isSubmitting || sendCallsPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Processing...

@@ -654,7 +654,7 @@ export function MarketResolver() {
                             variant="outline"
                             className="text-blue-600 border-blue-200"
                           >
-                            Early Resolution
+                            Er
                           </Badge>
                         )}
                       </div>

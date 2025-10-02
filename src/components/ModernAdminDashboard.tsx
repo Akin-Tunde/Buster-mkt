@@ -1,10 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { useAccount, useReadContract } from "wagmi";
+import { useState, useEffect } from "react";
+import {
+  useAccount,
+  useReadContract,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { useV3PlatformData } from "@/hooks/useV3PlatformData";
 import { CreateMarketV2 } from "./CreateMarketV2";
 import { MarketResolver } from "./MarketResolver";
 import { AdminRoleManager } from "./AdminRoleManager";
@@ -28,10 +44,12 @@ import {
   Award,
   Activity,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
 
 export function ModernAdminDashboard() {
   const { isConnected } = useAccount();
+  const { toast } = useToast();
   const {
     hasCreatorAccess,
     hasResolverAccess,
@@ -39,6 +57,30 @@ export function ModernAdminDashboard() {
     isAdmin,
     isOwner,
   } = useUserRoles();
+
+  // Settings tab state
+  const [newFeeRate, setNewFeeRate] = useState("200");
+  const [newFeeCollector, setNewFeeCollector] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // V3 Platform data for settings
+  const { globalStats, currentFeeRate, refreshAllData } = useV3PlatformData();
+
+  // Contract interactions for settings
+  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({ hash });
+
+  // Handle transaction success
+  useEffect(() => {
+    if (isConfirmed && hash) {
+      handleRefresh();
+      toast({
+        title: "Transaction Successful",
+        description: "Platform settings updated successfully.",
+      });
+    }
+  }, [isConfirmed, hash]);
 
   // Set default tab based on user permissions - prioritize withdrawals for admin users
   const getDefaultTab = () => {
@@ -76,6 +118,125 @@ export function ModernAdminDashboard() {
   const hasAnyAccess =
     hasCreatorAccess || hasResolverAccess || hasValidatorAccess || isAdmin;
 
+  // Settings handlers
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshAllData();
+      toast({
+        title: "Data Refreshed",
+        description: "Platform data has been updated.",
+      });
+    } catch (error) {
+      console.error("Failed to refresh data:", error);
+      toast({
+        title: "Refresh Failed",
+        description: "Failed to refresh platform data.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleWithdrawPlatformFees = async () => {
+    try {
+      toast({
+        title: "Transaction Submitted",
+        description: "Withdrawing platform fees...",
+      });
+
+      await writeContract({
+        address: V2contractAddress,
+        abi: V2contractAbi,
+        functionName: "withdrawPlatformFees",
+        args: [],
+      });
+    } catch (error: any) {
+      console.error("Error withdrawing platform fees:", error);
+      toast({
+        title: "Transaction Failed",
+        description: error?.shortMessage || "Failed to withdraw platform fees.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSetFeeRate = async () => {
+    try {
+      const feeRateValue = parseInt(newFeeRate);
+      if (feeRateValue < 0 || feeRateValue > 1000) {
+        toast({
+          title: "Invalid Fee Rate",
+          description:
+            "Fee rate must be between 0% and 10% (0-1000 basis points).",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Transaction Submitted",
+        description: "Updating platform fee rate...",
+      });
+
+      await writeContract({
+        address: V2contractAddress,
+        abi: V2contractAbi,
+        functionName: "setPlatformFeeRate",
+        args: [BigInt(feeRateValue)],
+      });
+    } catch (error: any) {
+      console.error("Error setting fee rate:", error);
+      toast({
+        title: "Transaction Failed",
+        description: error?.shortMessage || "Failed to set fee rate.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSetFeeCollector = async () => {
+    try {
+      if (!newFeeCollector || !newFeeCollector.startsWith("0x")) {
+        toast({
+          title: "Invalid Address",
+          description: "Please enter a valid Ethereum address.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Transaction Submitted",
+        description: "Updating fee collector address...",
+      });
+
+      await writeContract({
+        address: V2contractAddress,
+        abi: V2contractAbi,
+        functionName: "setFeeCollector",
+        args: [newFeeCollector as `0x${string}`],
+      });
+    } catch (error: any) {
+      console.error("Error setting fee collector:", error);
+      toast({
+        title: "Transaction Failed",
+        description: error?.shortMessage || "Failed to set fee collector.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const formatAmount = (amount: bigint | null | undefined) => {
+    if (!amount) return "0.00";
+    const value = Number(amount) / 10 ** 18;
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
   if (!isConnected) {
     return (
       <Card>
@@ -109,7 +270,7 @@ export function ModernAdminDashboard() {
     );
   }
 
-  const formatFeeRate = (rate: bigint | undefined) => {
+  const formatFeeRate = (rate: bigint | null | undefined) => {
     if (!rate) return "N/A";
     return `${(Number(rate) / 100).toFixed(2)}%`;
   };
@@ -124,32 +285,6 @@ export function ModernAdminDashboard() {
 
   return (
     <div className="space-y-4 md:space-y-6 mb-16 md:mb-20">
-      {/* Withdrawals Notification Banner */}
-      {(isOwner || isAdmin) && (
-        <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <DollarSign className="h-5 w-5 text-blue-600" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-blue-900">
-                  💰 Admin Withdrawals Available
-                </p>
-                <p className="text-xs text-blue-700">
-                  Check the &ldquo;Withdrawals&ldquo; tab to claim admin
-                  liquidity and unused funds from your resolved markets
-                </p>
-              </div>
-              <button
-                onClick={() => setActiveTab("withdrawals")}
-                className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-              >
-                View Withdrawals
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
         <div>
@@ -318,6 +453,15 @@ export function ModernAdminDashboard() {
               <span className="hidden sm:inline">Roles</span>
             </TabsTrigger>
           )}
+          {isOwner && (
+            <TabsTrigger
+              value="settings"
+              className="flex items-center gap-1 md:gap-2 flex-1 min-w-[100px] md:min-w-0 text-xs md:text-sm px-2 md:px-3 py-1.5 md:py-2"
+            >
+              <Settings className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Settings</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Create Markets Tab */}
@@ -384,39 +528,6 @@ export function ModernAdminDashboard() {
                   <AdminWithdrawalsSection />
                 </CardContent>
               </Card>
-
-              {/* Platform Settings Section */}
-              {isOwner && (
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <Settings className="h-6 w-6 text-purple-600" />
-                      <div>
-                        <h2 className="text-xl font-semibold">
-                          Platform Management
-                        </h2>
-                        <p className="text-gray-600 text-sm">
-                          Advanced platform settings and fee management
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                      <p className="text-sm text-blue-800">
-                        <strong>Note:</strong> For advanced platform settings
-                        like fee rate changes and fee collector management,
-                        visit the{" "}
-                        <a
-                          href="/platform"
-                          className="underline hover:text-blue-900"
-                        >
-                          Platform Management page
-                        </a>
-                        .
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </div>
           </TabsContent>
         )}
@@ -428,6 +539,177 @@ export function ModernAdminDashboard() {
             className="space-y-4 md:space-y-6 mt-3 md:mt-6"
           >
             <AdminRoleManager />
+          </TabsContent>
+        )}
+
+        {/* Settings Tab */}
+        {isOwner && (
+          <TabsContent
+            value="settings"
+            className="space-y-4 md:space-y-6 mt-3 md:mt-6"
+          >
+            <Tabs defaultValue="fees" className="space-y-3 md:space-y-4 w-full">
+              <TabsList className="w-full h-auto p-1 grid grid-cols-1 md:grid-cols-2 gap-1">
+                <TabsTrigger
+                  value="fees"
+                  className="text-xs md:text-sm px-2 py-2 md:px-3"
+                >
+                  Fee Management
+                </TabsTrigger>
+                <TabsTrigger
+                  value="platform"
+                  className="text-xs md:text-sm px-2 py-2 md:px-3"
+                >
+                  Platform Settings
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Fee Management Sub-tab */}
+              <TabsContent value="fees" className="space-y-3 md:space-y-4">
+                <Card>
+                  <CardHeader className="pb-3 md:pb-6">
+                    <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                      <DollarSign className="h-4 w-4 md:h-5 md:w-5" />
+                      Platform Fee Collection
+                    </CardTitle>
+                    <CardDescription className="text-sm md:text-base">
+                      Withdraw accumulated platform fees
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 md:space-y-4">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between p-3 md:p-4 border rounded-lg gap-3 md:gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm md:text-base">
+                          Available for Withdrawal
+                        </p>
+                        <p className="text-xl md:text-2xl font-bold text-green-600 truncate">
+                          {formatAmount(globalStats?.totalFeesCollected)} BSTR
+                        </p>
+                        <p className="text-xs md:text-sm text-gray-500 truncate">
+                          Fee Collector: {globalStats?.feeCollector}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleWithdrawPlatformFees}
+                        disabled={
+                          isPending ||
+                          isConfirming ||
+                          !globalStats?.totalFeesCollected ||
+                          globalStats.totalFeesCollected === 0n
+                        }
+                        className="flex items-center justify-center gap-2 w-full lg:w-auto h-9 md:h-10 text-sm md:text-base"
+                      >
+                        {isPending || isConfirming ? (
+                          <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
+                        ) : (
+                          <DollarSign className="h-3 w-3 md:h-4 md:w-4" />
+                        )}
+                        <span className="hidden sm:inline">Withdraw Fees</span>
+                        <span className="sm:hidden">Withdraw</span>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Platform Settings Sub-tab */}
+              <TabsContent value="platform" className="space-y-3 md:space-y-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
+                  <Card>
+                    <CardHeader className="pb-3 md:pb-6">
+                      <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                        <Settings className="h-4 w-4 md:h-5 md:w-5" />
+                        Platform Fee Rate
+                      </CardTitle>
+                      <CardDescription className="text-sm md:text-base">
+                        Set the platform fee rate (in basis points, 100 = 1%)
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 md:space-y-4">
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="feeRate"
+                          className="text-sm md:text-base"
+                        >
+                          Fee Rate (basis points)
+                        </Label>
+                        <Input
+                          id="feeRate"
+                          type="number"
+                          min="0"
+                          max="1000"
+                          value={newFeeRate}
+                          onChange={(e) => setNewFeeRate(e.target.value)}
+                          placeholder="200 (2%)"
+                          className="h-9 md:h-10"
+                        />
+                        <p className="text-xs md:text-sm text-gray-500 truncate">
+                          Current: {formatFeeRate(currentFeeRate)}% | New:{" "}
+                          {(parseInt(newFeeRate) / 100).toFixed(2)}%
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleSetFeeRate}
+                        disabled={isPending || isConfirming}
+                        className="w-full h-9 md:h-10 text-sm md:text-base"
+                      >
+                        {isPending || isConfirming ? (
+                          <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
+                        ) : (
+                          <Settings className="h-3 w-3 md:h-4 md:w-4" />
+                        )}
+                        Update Fee Rate
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3 md:pb-6">
+                      <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+                        <Users className="h-4 w-4 md:h-5 md:w-5" />
+                        Fee Collector Address
+                      </CardTitle>
+                      <CardDescription className="text-sm md:text-base">
+                        Set the address that can withdraw platform fees
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3 md:space-y-4">
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="feeCollector"
+                          className="text-sm md:text-base"
+                        >
+                          Fee Collector Address
+                        </Label>
+                        <Input
+                          id="feeCollector"
+                          type="text"
+                          value={newFeeCollector}
+                          onChange={(e) => setNewFeeCollector(e.target.value)}
+                          placeholder="0x..."
+                          className="h-9 md:h-10"
+                        />
+                        <p className="text-xs md:text-sm text-gray-500 truncate">
+                          Current: {globalStats?.feeCollector}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleSetFeeCollector}
+                        disabled={isPending || isConfirming || !newFeeCollector}
+                        className="w-full h-9 md:h-10 text-sm md:text-base"
+                      >
+                        {isPending || isConfirming ? (
+                          <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin" />
+                        ) : (
+                          <Users className="h-3 w-3 md:h-4 md:w-4" />
+                        )}
+                        Update Fee Collector
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         )}
       </Tabs>

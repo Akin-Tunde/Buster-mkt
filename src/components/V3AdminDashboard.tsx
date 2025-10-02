@@ -23,7 +23,7 @@ import { useV3PlatformData } from "@/hooks/useV3PlatformData";
 import { V2contractAddress, V2contractAbi } from "@/constants/contract";
 // import { MarketInvalidationManager } from "./MarketInvalidationManager";
 // import { LPRewardsManager } from "./LPRewardsManager";//
-import { AdminWithdrawalsSection } from "./AdminWithdrawalsSection";
+
 import {
   Loader2,
   DollarSign,
@@ -43,24 +43,6 @@ export function V3AdminDashboard() {
   const [newFeeCollector, setNewFeeCollector] = useState("");
   const [adminLiquidityMarketId, setAdminLiquidityMarketId] = useState("");
   const [prizePoolMarketId, setPrizePoolMarketId] = useState("");
-
-  // Deprecation notice
-  const DeprecationBanner = () => (
-    <Card className="mb-4 border-orange-200 bg-orange-50">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2">
-          <AlertCircle className="h-4 w-4 text-orange-600" />
-          <p className="text-orange-800">
-            This V3 admin dashboard is deprecated. Please use the{" "}
-            <a href="/admin" className="underline font-medium">
-              Modern Admin Dashboard
-            </a>{" "}
-            for the latest features and improvements.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   // Use the custom hook for platform data
   const {
@@ -200,73 +182,6 @@ export function V3AdminDashboard() {
     }
   };
 
-  // Withdraw admin liquidity
-  const handleWithdrawAdminLiquidity = async () => {
-    try {
-      if (!adminLiquidityMarketId) {
-        toast({
-          title: "Missing Market ID",
-          description: "Please enter a market ID.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "Transaction Submitted",
-        description: "Withdrawing admin liquidity...",
-      });
-
-      await (writeContract as any)({
-        address: V2contractAddress,
-        abi: V2contractAbi,
-        functionName: "withdrawAdminLiquidity" as any,
-        args: [BigInt(adminLiquidityMarketId)],
-      });
-    } catch (error: any) {
-      console.error("Error withdrawing admin liquidity:", error);
-      toast({
-        title: "Transaction Failed",
-        description:
-          error?.shortMessage || "Failed to withdraw admin liquidity.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Withdraw unused prize pool
-  const handleWithdrawUnusedPrizePool = async () => {
-    try {
-      if (!prizePoolMarketId) {
-        toast({
-          title: "Missing Market ID",
-          description: "Please enter a free market ID.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "Transaction Submitted",
-        description: "Withdrawing unused prize pool...",
-      });
-
-      await (writeContract as any)({
-        address: V2contractAddress,
-        abi: V2contractAbi,
-        functionName: "withdrawUnusedPrizePool" as any,
-        args: [BigInt(prizePoolMarketId)],
-      });
-    } catch (error: any) {
-      console.error("Error withdrawing prize pool:", error);
-      toast({
-        title: "Transaction Failed",
-        description: error?.shortMessage || "Failed to withdraw prize pool.",
-        variant: "destructive",
-      });
-    }
-  };
-
   // Format amounts
   const formatAmount = (amount: bigint | null | undefined) => {
     if (!amount) return "0.00";
@@ -315,9 +230,6 @@ export function V3AdminDashboard() {
 
   return (
     <div className="px-4 md:px-0 space-y-4 md:space-y-6 mb-16 md:mb-20 max-w-full overflow-hidden">
-      {/* Deprecation Banner */}
-      <DeprecationBanner />
-
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
         <div className="min-w-0 flex-1">
           <h1 className="text-xl md:text-3xl font-bold truncate">
@@ -417,30 +329,6 @@ export function V3AdminDashboard() {
           >
             Fee Management
           </TabsTrigger>
-          <TabsTrigger
-            value="withdrawals"
-            className="text-xs md:text-sm px-2 py-2 md:px-3"
-          >
-            LP & Free Market Pool
-          </TabsTrigger>
-          {/* <TabsTrigger
-            value="invalidation"
-            className="text-xs md:text-sm px-2 py-2 md:px-3"
-          >
-            Market Invalidation
-          </TabsTrigger> */}
-          {/* <TabsTrigger
-            value="liquidity"
-            className="text-xs md:text-sm px-2 py-2 md:px-3"
-          >
-            Liquidity Recovery
-          </TabsTrigger> */}
-          {/* <TabsTrigger
-            value="lprewards"
-            className="text-xs md:text-sm px-2 py-2 md:px-3"
-          >
-            LP Rewards
-          </TabsTrigger> */}
           {isOwner && (
             <TabsTrigger
               value="settings"
@@ -498,120 +386,6 @@ export function V3AdminDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="withdrawals" className="space-y-3 md:space-y-4">
-          {/* Auto-Discovered Withdrawals */}
-          <AdminWithdrawalsSection />
-        </TabsContent>
-
-        {/* Market Invalidation */}
-        {/* <TabsContent value="invalidation" className="space-y-3 md:space-y-4">
-          <Card>
-            <CardHeader className="pb-3 md:pb-6">
-              <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-                <AlertCircle className="h-4 w-4 md:h-5 md:w-5 text-red-500" />
-                Market Invalidation
-              </CardTitle>
-              <CardDescription className="text-sm md:text-base">
-                Invalidate problematic markets and process automatic refunds
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <MarketInvalidationManager />
-            </CardContent>
-          </Card>
-        </TabsContent> */}
-        {/* Admin Liquidity Recovery */}
-        {/* <TabsContent value="liquidity" className="space-y-3 md:space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4">
-            <Card>
-              <CardHeader className="pb-3 md:pb-6">
-                <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-                  <DollarSign className="h-4 w-4 md:h-5 md:w-5" />
-                  Withdraw Admin Liquidity
-                </CardTitle>
-                <CardDescription className="text-sm md:text-base">
-                  Recover liquidity from resolved markets you created
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 md:space-y-4">
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="adminLiquidityMarketId"
-                    className="text-sm md:text-base"
-                  >
-                    Market ID
-                  </Label>
-                  <Input
-                    id="adminLiquidityMarketId"
-                    type="number"
-                    placeholder="Enter market ID..."
-                    value={adminLiquidityMarketId}
-                    onChange={(e) => setAdminLiquidityMarketId(e.target.value)}
-                    className="h-9 md:h-10"
-                  />
-                </div>
-                <Button
-                  onClick={handleWithdrawAdminLiquidity}
-                  disabled={
-                    isPending || isConfirming || !adminLiquidityMarketId
-                  }
-                  className="w-full h-9 md:h-10 text-sm md:text-base"
-                >
-                  {(isPending || isConfirming) && (
-                    <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin mr-2" />
-                  )}
-                  Withdraw Admin Liquidity
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3 md:pb-6">
-                <CardTitle className="flex items-center gap-2 text-base md:text-lg">
-                  <Users className="h-4 w-4 md:h-5 md:w-5" />
-                  Withdraw Unused Prize Pool
-                </CardTitle>
-                <CardDescription className="text-sm md:text-base">
-                  Recover unused prize pools from free markets
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 md:space-y-4">
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="prizePoolMarketId"
-                    className="text-sm md:text-base"
-                  >
-                    Free Market ID
-                  </Label>
-                  <Input
-                    id="prizePoolMarketId"
-                    type="number"
-                    placeholder="Enter free market ID..."
-                    value={prizePoolMarketId}
-                    onChange={(e) => setPrizePoolMarketId(e.target.value)}
-                    className="h-9 md:h-10"
-                  />
-                </div>
-                <Button
-                  onClick={handleWithdrawUnusedPrizePool}
-                  disabled={isPending || isConfirming || !prizePoolMarketId}
-                  className="w-full h-9 md:h-10 text-sm md:text-base"
-                >
-                  {(isPending || isConfirming) && (
-                    <Loader2 className="h-3 w-3 md:h-4 md:w-4 animate-spin mr-2" />
-                  )}
-                  Withdraw Prize Pool
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent> */}
-
-        {/* LP Rewards Management */}
-        {/* <TabsContent value="lprewards" className="space-y-3 md:space-y-4">
-          <LPRewardsManager />
-        </TabsContent> */}
 
         {isOwner && (
           <TabsContent value="settings" className="space-y-3 md:space-y-4">

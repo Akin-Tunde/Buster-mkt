@@ -15,6 +15,7 @@ import { MarketResolved } from "@/components/market-resolved";
 import { MarketPending } from "@/components/market-pending";
 import MarketTime from "@/components/market-time";
 import { MarketProgress } from "@/components/market-progress";
+import { MultiOptionProgress } from "@/components/multi-option-progress";
 //eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { MarketSharesDisplay } from "@/components/market-shares-display";
 
@@ -25,6 +26,8 @@ import { CommentSystem } from "@/components/CommentSystem";
 import { MarketV2, MarketOption, MarketCategory } from "@/types/types";
 import { useV3UserRoles } from "@/hooks/useV3UserRoles";
 import { FreeTokenClaimButton } from "@/components/FreeTokenClaimButton";
+import { useReadContract } from "wagmi";
+import { PolicastViews, PolicastViewsAbi } from "@/constants/contract";
 
 interface Market {
   question: string;
@@ -170,6 +173,26 @@ export function MarketDetailsClient({
   });
   const [rolesChecked, setRolesChecked] = useState(false);
 
+  // Fetch market odds for V2 markets to display accurate probabilities
+  const { data: marketOddsRaw } = useReadContract({
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
+    functionName: "getMarketOdds",
+    args: [BigInt(marketId)],
+    query: {
+      enabled: market.version === "v2",
+      refetchInterval: 5000, // Refresh every 5 seconds
+    },
+  });
+
+  // Calculate probabilities from odds (convert from 0-1e18 range to percentage)
+  const probabilities =
+    market.version === "v2" && marketOddsRaw
+      ? (marketOddsRaw as readonly bigint[]).map(
+          (odd) => Number(odd) / 1e16 // Convert to percentage (0-100)
+        )
+      : [];
+
   // Reset roles check when marketId changes
   useEffect(() => {
     setRolesChecked(false);
@@ -249,30 +272,6 @@ export function MarketDetailsClient({
   const now = Date.now();
   const endTimeMs = Number(market.endTime) * 1000;
   const isEnded = now > endTimeMs;
-
-  // let statusBadge;
-  // if (market.resolved) {
-  //   statusBadge = (
-  //     <div className="inline-flex items-center px-3 py-1 rounded-full text-sm text-sm text-gray-600 bg-green-100 text-green-800">
-  //       <Award className="w-4 h-4 mr-1" />
-  //       Resolved
-  //     </div>
-  //   );
-  // } else if (isEnded) {
-  //   statusBadge = (
-  //     <div className="inline-flex items-center px-3 py-1 rounded-full text-sm text-sm text-gray-600 bg-yellow-100 text-yellow-800">
-  //       <AlertTriangle className="w-4 h-4 mr-1" />
-  //       Unresolved
-  //     </div>
-  //   );
-  // } else {
-  //   statusBadge = (
-  //     <div className="inline-flex items-center px-3 py-1 rounded-full text-sm text-sm text-gray-600 bg-blue-100 text-blue-800">
-  //       <Clock className="w-4 h-4 mr-1" />
-  //       Active
-  //     </div>
-  //   );
-  // }
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -486,12 +485,12 @@ export function MarketDetailsClient({
             </h3>
             {market.version === "v2" &&
             market.options &&
-            market.optionShares ? (
-              <MarketProgress
-                options={optionLabels}
-                optionShares={market.optionShares}
-                version="v2"
-                tokenDecimals={TOKEN_DECIMALS}
+            normalizedOptionObjects.length > 0 ? (
+              <MultiOptionProgress
+                marketId={Number(marketId)}
+                options={normalizedOptionObjects}
+                probabilities={probabilities}
+                totalVolume={totalSharesInUnits}
               />
             ) : (
               <MarketProgress

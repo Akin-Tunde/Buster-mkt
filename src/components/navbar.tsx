@@ -33,7 +33,6 @@ export function Navbar() {
   const navigationItems = [
     { name: "Markets", href: "/", icon: Home },
     // { name: "Free Markets", href: "/free-markets", icon: Gift },
-    { name: "Analytics", href: "/analytics", icon: BarChart3 },
     { name: "Profile", href: "/profile", icon: User },
   ];
 
@@ -42,9 +41,6 @@ export function Navbar() {
     ...navigationItems,
     ...(hasCreatorAccess || hasResolverAccess || isAdmin
       ? [{ name: "Admin", href: "/admin", icon: Settings }]
-      : []),
-    ...(isOwner || isAdmin
-      ? [{ name: "Platform", href: "/platform", icon: BarChart3 }]
       : []),
   ];
 

@@ -8,6 +8,8 @@ import {
   tokenAddress,
   tokenAbi,
   publicClient,
+  PolicastViews,
+  PolicastViewsAbi,
 } from "@/constants/contract";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
@@ -86,6 +88,18 @@ export function MarketV2PositionManager({
     address: tokenAddress,
     abi: tokenAbi,
     functionName: "symbol",
+  });
+
+  // Fetch accurate unrealized PnL from contract
+  const { data: contractUnrealizedPnL } = useReadContract({
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
+    functionName: "calculateUnrealizedPnL",
+    args: [accountAddress as `0x${string}`],
+    query: {
+      enabled: !!accountAddress,
+      refetchInterval: 10000,
+    },
   });
 
   // Fetch user shares for each option in this market
@@ -212,6 +226,62 @@ export function MarketV2PositionManager({
     },
   });
 
+  // Fetch cost basis for each option
+  const costBasis0Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "userCostBasis",
+    args: [accountAddress as `0x${string}`, BigInt(marketId), 0n],
+    query: {
+      enabled: !!accountAddress && market.options.length > 0,
+      refetchInterval: 10000,
+    },
+  });
+
+  const costBasis1Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "userCostBasis",
+    args: [accountAddress as `0x${string}`, BigInt(marketId), 1n],
+    query: {
+      enabled: !!accountAddress && market.options.length > 1,
+      refetchInterval: 10000,
+    },
+  });
+
+  const costBasis2Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "userCostBasis",
+    args: [accountAddress as `0x${string}`, BigInt(marketId), 2n],
+    query: {
+      enabled: !!accountAddress && market.options.length > 2,
+      refetchInterval: 10000,
+    },
+  });
+
+  const costBasis3Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "userCostBasis",
+    args: [accountAddress as `0x${string}`, BigInt(marketId), 3n],
+    query: {
+      enabled: !!accountAddress && market.options.length > 3,
+      refetchInterval: 10000,
+    },
+  });
+
+  const costBasis4Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "userCostBasis",
+    args: [accountAddress as `0x${string}`, BigInt(marketId), 4n],
+    query: {
+      enabled: !!accountAddress && market.options.length > 4,
+      refetchInterval: 10000,
+    },
+  });
+
   // Array of user shares queries for easy access
   const userSharesQueries = [
     userShares0Query,
@@ -228,6 +298,15 @@ export function MarketV2PositionManager({
     option2Query,
     option3Query,
     option4Query,
+  ];
+
+  // Array of cost basis queries for easy access
+  const costBasisQueries = [
+    costBasis0Query,
+    costBasis1Query,
+    costBasis2Query,
+    costBasis3Query,
+    costBasis4Query,
   ];
 
   // Convert user shares data to position objects with real-time prices
@@ -252,23 +331,29 @@ export function MarketV2PositionManager({
     }
 
     const currentValue =
-      shares > 0n ? (shares * currentPrice) / BigInt(10 ** 18) : 0n;
+      shares > 0n ? (shares * currentPrice * 100n) / BigInt(10 ** 18) : 0n;
 
-    // Simplified P&L calculation - use a basic approach for now
+    // Calculate P&L using cost basis from contract
     let unrealizedPnL = 0n;
     let unrealizedPnLPercent = 0;
 
-    if (shares > 0n && currentPrice > 0n) {
-      // For simplicity, assume average cost basis of 50 tokens per share
-      // This is a rough estimate since we don't have exact purchase history
-      // 50 tokens represents approximately 50% probability in a typical 2-option market
-      const estimatedCostBasis =
-        (shares * BigInt(50 * 10 ** 18)) / BigInt(10 ** 18); // 50 tokens per share
-      unrealizedPnL = currentValue - estimatedCostBasis;
-      unrealizedPnLPercent =
-        estimatedCostBasis > 0n
-          ? Number((unrealizedPnL * 10000n) / estimatedCostBasis) / 100
-          : 0;
+    if (shares > 0n) {
+      // Get cost basis from contract for this specific position
+      const costBasisQuery = costBasisQueries[optionId];
+      const costBasis = (costBasisQuery?.data as bigint) || 0n;
+
+      if (currentPrice > 0n) {
+        // For unresolved markets: mark-to-market using token price
+        const PAYOUT_PER_SHARE = 100n * BigInt(10 ** 18);
+        const marketValue =
+          (shares * currentPrice * PAYOUT_PER_SHARE) /
+          (BigInt(10 ** 18) * BigInt(10 ** 18));
+        unrealizedPnL = BigInt(marketValue) - costBasis;
+        unrealizedPnLPercent =
+          costBasis > 0n
+            ? Number((unrealizedPnL * 10000n) / costBasis) / 100
+            : 0;
+      }
     }
 
     return {
@@ -304,11 +389,12 @@ export function MarketV2PositionManager({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Refresh shares, portfolio data, and option data
+      // Refresh shares, portfolio data, option data, and cost basis
       const refreshPromises = [
         ...userSharesQueries.map((query: any) => query.refetch?.()),
         refetchPortfolio(),
         ...optionQueries.map((query: any) => query.refetch?.()),
+        ...costBasisQueries.map((query: any) => query.refetch?.()),
       ].filter(Boolean);
 
       await Promise.all(refreshPromises);
@@ -477,7 +563,8 @@ export function MarketV2PositionManager({
                             {tokenSymbol || "TOKENS"}
                           </div>
                           <div className="text-xs md:text-sm text-gray-600">
-                            @ {formatPrice(position.currentPrice)} per share
+                            @ {formatPrice(position.currentPrice * 100n)} per
+                            share
                             {optionQueries[position.optionId]?.isRefetching && (
                               <RefreshCw className="inline ml-1 h-3 w-3 animate-spin text-blue-500" />
                             )}

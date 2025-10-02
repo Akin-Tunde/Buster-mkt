@@ -26,6 +26,7 @@ import { Loader2, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { MarketV2 } from "@/types/types";
+import { MarketV2SharesDisplay } from "./market-v2-shares-display";
 
 interface MarketV2SellInterfaceProps {
   marketId: number;
@@ -402,6 +403,27 @@ export function MarketV2SellInterface({
           <span className="font-medium text-sm md:text-base">Sell Shares</span>
         </div>
 
+        {/* User's current shares display */}
+        {Object.values(userShares).some((shares) => shares > 0n) && (
+          <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-md border">
+            <MarketV2SharesDisplay
+              market={market}
+              userShares={Object.values(userShares) as readonly bigint[]}
+              options={market.options.map((opt, idx) => ({
+                name:
+                  typeof opt === "string"
+                    ? opt
+                    : opt.name || `Option ${idx + 1}`,
+                description: "",
+                totalShares: 0n,
+                totalVolume: 0n,
+                currentPrice: 0n,
+                isActive: true,
+              }))}
+            />
+          </div>
+        )}
+
         {/* Error Display */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-2 md:p-3">
@@ -411,17 +433,19 @@ export function MarketV2SellInterface({
 
         {/* Step 1: Option Selection */}
         {sellingStep === "initial" && (
-          <div className="space-y-2 md:space-y-3">
-            <p className="text-xs md:text-sm text-gray-600">
-              Select which option shares you want to sell:
-            </p>
+          <div className="space-y-1">
+            <div className="px-1">
+              <p className="text-xs font-medium text-gray-700 mb-0.5">
+                Select which option shares you want to sell:
+              </p>
+            </div>
 
             {optionsWithShares.length === 0 ? (
-              <div className="text-center py-3 md:py-4 text-gray-500 text-sm">
+              <div className="text-center py-3 text-gray-500 text-xs">
                 You don&apos;t own any shares in this market.
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {optionsWithShares.map((option) => (
                   <button
                     key={option.id}
@@ -429,25 +453,21 @@ export function MarketV2SellInterface({
                       setSelectedOptionId(option.id);
                       setSellingStep("amount");
                     }}
-                    className="w-full p-2 md:p-3 text-left border border-gray-200 rounded-lg hover:border-red-300 hover:bg-red-50 transition-colors"
+                    className="w-full p-1.5 text-left border border-gray-200 rounded-md hover:border-red-300 hover:bg-red-50 transition-colors"
                   >
                     <div className="flex justify-between items-center">
                       <div>
-                        <div className="font-medium text-sm md:text-base">
-                          {option.name}
-                        </div>
-                        <div className="text-xs md:text-sm text-gray-600">
+                        <div className="font-medium text-xs">{option.name}</div>
+                        <div className="text-xs text-gray-600">
                           Your shares: {formatShares(option.shares)}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-xs md:text-sm text-gray-600">
+                        <div className="text-xs text-gray-600">
                           Current Price
                         </div>
-                        <div className="font-medium text-sm md:text-base">
-                          {(
-                            Number(formatPrice(option.currentPrice)) * 100
-                          ).toFixed(1)}
+                        <div className="font-medium text-xs">
+                          {Number(formatPrice(option.currentPrice)).toFixed(1)}
                           Buster
                         </div>
                       </div>
@@ -461,22 +481,22 @@ export function MarketV2SellInterface({
 
         {/* Step 2: Amount Input */}
         {sellingStep === "amount" && selectedOptionId !== null && (
-          <div className="space-y-3 md:space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-2 md:p-3">
-              <div className="text-xs md:text-sm text-red-700">
+          <div className="space-y-1.5">
+            <div className="bg-red-50 border border-red-200 rounded-md p-1.5">
+              <div className="text-xs text-red-700">
                 <div className="font-medium">
                   Selling: {market.options[selectedOptionId].name}
                 </div>
                 <div>Available: {formatShares(userSharesForOption)} shares</div>
                 <div>
-                  Current Price:{" "}
-                  {(Number(formatPrice(currentPrice)) * 100).toFixed(1)}%
+                  Current Price: {Number(formatPrice(currentPrice)).toFixed(1)}{" "}
+                  Buster
                 </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-xs md:text-sm font-medium text-gray-700">
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-700 mb-0.5">
                 Shares to Sell
               </label>
               <div className="relative">
@@ -486,20 +506,20 @@ export function MarketV2SellInterface({
                   placeholder="0.00"
                   value={sellAmount}
                   onChange={(e) => setSellAmount(e.target.value)}
-                  className="pr-12 md:pr-16 text-sm md:text-base"
+                  className="pr-12 text-xs h-8"
                   step="0.01"
                   min="0"
                   max={maxSellAmount.toString()}
                 />
                 <button
                   onClick={() => setSellAmount(maxSellAmount.toString())}
-                  className="absolute right-1 md:right-2 top-1/2 -translate-y-1/2 text-xs bg-red-100 text-red-700 px-1 md:px-2 py-1 rounded hover:bg-red-200 transition-colors"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 text-xs bg-red-100 text-red-700 px-1 py-0.5 rounded hover:bg-red-200 transition-colors"
                 >
                   MAX
                 </button>
               </div>
               {estimatedRevenue && sellAmount && parseFloat(sellAmount) > 0 && (
-                <div className="text-xs md:text-sm text-gray-600 mt-2 p-2 bg-gray-50 rounded">
+                <div className="text-xs text-gray-600 mt-1 p-1.5 bg-gray-50 rounded">
                   <div className="flex justify-between">
                     <span>Shares to Sell:</span>
                     <span>{sellAmount}</span>
@@ -523,7 +543,7 @@ export function MarketV2SellInterface({
                 </div>
               )}
               {sellAmount && !estimatedRevenue && (
-                <div className="text-xs md:text-sm text-gray-600">
+                <div className="text-xs text-gray-600">
                   Estimated Revenue: ~{estimatedRevenueFormatted.toFixed(4)}{" "}
                   {tokenSymbol || "TOKENS"}
                 </div>
@@ -537,7 +557,7 @@ export function MarketV2SellInterface({
                   setSellAmount("");
                 }}
                 variant="outline"
-                className="flex-1 text-xs md:text-sm h-8 md:h-10"
+                className="flex-1 text-xs h-8"
               >
                 Back
               </Button>
@@ -548,7 +568,7 @@ export function MarketV2SellInterface({
                   parseFloat(sellAmount) <= 0 ||
                   parseFloat(sellAmount) > maxSellAmount
                 }
-                className="flex-1 bg-red-600 hover:bg-red-700 text-xs md:text-sm h-8 md:h-10"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-xs h-8"
               >
                 Review Sale
               </Button>
@@ -558,12 +578,12 @@ export function MarketV2SellInterface({
 
         {/* Step 3: Confirmation */}
         {sellingStep === "confirm" && selectedOptionId !== null && (
-          <div className="space-y-3 md:space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 md:p-4">
-              <h3 className="font-medium text-red-800 mb-2 text-sm md:text-base">
+          <div className="space-y-1.5">
+            <div className="bg-red-50 border border-red-200 rounded-md p-1.5">
+              <h3 className="font-medium text-red-800 mb-0.5 text-xs">
                 Confirm Sale
               </h3>
-              <div className="space-y-1 md:space-y-2 text-xs md:text-sm text-red-700">
+              <div className="space-y-0.5 text-xs text-red-700">
                 <div className="flex justify-between">
                   <span>Option:</span>
                   <span className="font-medium">
@@ -605,14 +625,14 @@ export function MarketV2SellInterface({
               <Button
                 onClick={() => setSellingStep("amount")}
                 variant="outline"
-                className="flex-1 text-xs md:text-sm h-8 md:h-10"
+                className="flex-1 text-xs h-8"
               >
                 Back
               </Button>
               <Button
                 onClick={handleSell}
                 disabled={isProcessing}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-xs md:text-sm h-8 md:h-10"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-xs h-8"
               >
                 {isProcessing ? (
                   <>
@@ -629,9 +649,9 @@ export function MarketV2SellInterface({
 
         {/* Step 4: Processing */}
         {sellingStep === "processing" && (
-          <div className="text-center py-3 md:py-4">
-            <Loader2 className="mx-auto h-6 w-6 md:h-8 md:w-8 animate-spin text-red-600" />
-            <p className="mt-2 text-xs md:text-sm text-gray-600">
+          <div className="text-center py-3 bg-gray-50 rounded-md border border-gray-200">
+            <Loader2 className="mx-auto h-5 w-5 animate-spin text-red-600" />
+            <p className="mt-1 text-xs text-gray-600">
               Processing your sale transaction...
             </p>
           </div>
@@ -639,10 +659,10 @@ export function MarketV2SellInterface({
 
         {/* Step 5: Success */}
         {sellingStep === "sellSuccess" && (
-          <div className="text-center py-3 md:py-4">
-            <div className="mx-auto w-10 h-10 md:w-12 md:h-12 bg-green-100 rounded-full flex items-center justify-center mb-2 md:mb-3">
+          <div className="text-center py-3 bg-green-50 rounded-md border border-green-200">
+            <div className="mx-auto w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mb-1">
               <svg
-                className="w-5 h-5 md:w-6 md:h-6 text-green-600"
+                className="w-4 h-4 text-green-600"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -655,10 +675,10 @@ export function MarketV2SellInterface({
                 />
               </svg>
             </div>
-            <p className="text-green-700 font-medium text-sm md:text-base">
+            <p className="text-green-700 font-medium text-xs">
               Shares Sold Successfully!
             </p>
-            <p className="text-xs md:text-sm text-gray-600 mt-1">
+            <p className="text-xs text-gray-600 mt-0.5">
               Tokens have been transferred to your wallet.
             </p>
           </div>

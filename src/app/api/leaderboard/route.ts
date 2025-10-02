@@ -170,16 +170,93 @@ export async function GET() {
       entriesV1.push(...batch);
     }
 
-    // V2 leaderboard is currently disabled since V2 contract doesn't have getLeaderboard function
-    // V2 uses different analytics approach with getUserPortfolio for individual user data
+    // Fetch V2 leaderboard using allParticipants array and userPortfolios mapping
+    console.log("📊 Fetching V2 participants and portfolios...");
     const entriesV2: {
       user: Address;
       totalWinnings: bigint;
       voteCount: number;
     }[] = [];
 
-    // TODO: Implement V2 leaderboard using getUserPortfolio + allParticipants when needed
-    // For now, we only use V1 leaderboard data
+    try {
+      // First, get the total number of participants in V2
+      // allParticipants is a public array, so we can get its length
+      let v2ParticipantIndex = 0;
+      let hasMoreParticipants = true;
+
+      // Fetch participants in batches to avoid timeout
+      while (hasMoreParticipants && v2ParticipantIndex < 10000) {
+        // Safety limit
+        const batchPromises: Promise<any>[] = [];
+
+        // Fetch up to PAGE_SIZE participants at once
+        for (let i = 0; i < PAGE_SIZE; i++) {
+          const currentIndex = v2ParticipantIndex + i;
+          batchPromises.push(
+            withRetry(() =>
+              publicClient.readContract({
+                address: V2contractAddress,
+                abi: V2contractAbi,
+                functionName: "allParticipants",
+                args: [BigInt(currentIndex)],
+              })
+            ).catch(() => null) // Return null if index doesn't exist
+          );
+        }
+
+        const batchResults = await Promise.all(batchPromises);
+
+        // Process batch results
+        for (const participantAddress of batchResults) {
+          if (!participantAddress) {
+            // No more participants
+            hasMoreParticipants = false;
+            break;
+          }
+
+          // Fetch user portfolio for this participant
+          try {
+            const portfolio = (await withRetry(() =>
+              publicClient.readContract({
+                address: V2contractAddress,
+                abi: V2contractAbi,
+                functionName: "userPortfolios",
+                args: [participantAddress as Address],
+              })
+            )) as [bigint, bigint, bigint, bigint, bigint]; // [totalInvested, totalWinnings, unrealizedPnL, realizedPnL, tradeCount]
+
+            const totalWinnings = portfolio[1]; // totalWinnings is at index 1
+            const tradeCount = Number(portfolio[4]); // tradeCount is at index 4
+
+            // Only add if user has winnings
+            if (totalWinnings > 0n) {
+              entriesV2.push({
+                user: participantAddress as Address,
+                totalWinnings,
+                voteCount: tradeCount,
+              });
+            }
+          } catch (portfolioError) {
+            console.warn(
+              `Failed to fetch V2 portfolio for ${participantAddress}:`,
+              portfolioError
+            );
+          }
+        }
+
+        v2ParticipantIndex += PAGE_SIZE;
+
+        // Stop if we didn't find any more participants in this batch
+        if (!hasMoreParticipants) {
+          break;
+        }
+      }
+
+      console.log(`✅ Fetched ${entriesV2.length} V2 leaderboard entries`);
+    } catch (v2Error) {
+      console.error("❌ Failed to fetch V2 leaderboard:", v2Error);
+      // Continue with V1 only if V2 fails
+    }
 
     // Combine V1 and V2 entries by address
     const combinedEntries = new Map<

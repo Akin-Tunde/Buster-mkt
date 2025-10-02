@@ -131,6 +131,18 @@ export function UserStats() {
     query: { enabled: !!accountAddress },
   });
 
+  // Calculate unrealized P&L dynamically (the field in userPortfolios is never updated)
+  const { data: calculatedUnrealizedPnL } = useReadContract({
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
+    functionName: "calculateUnrealizedPnL",
+    args: [accountAddress!],
+    query: {
+      enabled: !!accountAddress,
+      refetchInterval: 30000, // Refetch every 30 seconds to keep it updated
+    },
+  });
+
   const fetchUserStats = useCallback(
     async (address: Address) => {
       setIsLoading(true);
@@ -215,7 +227,8 @@ export function UserStats() {
               ? {
                   totalInvested: v2PortfolioTuple[0],
                   totalWinnings: v2PortfolioTuple[1],
-                  unrealizedPnL: v2PortfolioTuple[2],
+                  unrealizedPnL:
+                    (calculatedUnrealizedPnL as bigint | undefined) ?? 0n, // Use calculated value
                   realizedPnL: v2PortfolioTuple[3],
                   tradeCount: Number(v2PortfolioTuple[4]),
                 }
@@ -476,7 +489,8 @@ export function UserStats() {
             ? {
                 totalInvested: v2PortfolioTuple[0],
                 totalWinnings: v2PortfolioTuple[1],
-                unrealizedPnL: v2PortfolioTuple[2],
+                unrealizedPnL:
+                  (calculatedUnrealizedPnL as bigint | undefined) ?? 0n, // Use calculated value
                 realizedPnL: v2PortfolioTuple[3],
                 tradeCount: Number(v2PortfolioTuple[4]),
               }
@@ -519,7 +533,7 @@ export function UserStats() {
         setIsLoading(false);
       }
     },
-    [toast, totalWinnings, v2PortfolioTuple]
+    [toast, totalWinnings, v2PortfolioTuple, calculatedUnrealizedPnL]
   );
 
   useEffect(() => {
@@ -690,7 +704,7 @@ export function UserStats() {
               <div className="space-y-3">
                 <h3 className="text-base md:text-lg font-semibold text-gray-800 flex items-center gap-2">
                   <span className="w-2 h-2 md:w-3 md:h-3 bg-blue-500 rounded-full"></span>
-                  Binary Markets (V1)
+                  Binary Markets
                 </h3>
                 <div className="grid grid-cols-2 gap-2 md:gap-3">
                   <StatCard
@@ -740,7 +754,7 @@ export function UserStats() {
               <div className="space-y-3">
                 <h3 className="text-base md:text-lg font-semibold text-gray-800 flex items-center gap-2">
                   <span className="w-2 h-2 md:w-3 md:h-3 bg-green-500 rounded-full"></span>
-                  Multi-Option Markets (V2)
+                  Multi-Option Markets
                 </h3>
                 <div className="grid grid-cols-2 gap-2 md:gap-3">
                   <StatCard
@@ -789,7 +803,7 @@ export function UserStats() {
                 {stats.v2Portfolio && (
                   <div className="mt-4 p-3 bg-green-25 border border-green-200 rounded-lg">
                     <h4 className="text-sm font-semibold text-green-800 mb-2">
-                      V2 Portfolio Details
+                      Portfolio Details
                     </h4>
                     <div className="grid grid-cols-2 gap-2 text-xs mb-2">
                       <div>
@@ -849,61 +863,6 @@ export function UserStats() {
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Market Distribution */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <h4 className="text-lg font-semibold text-gray-800 mb-4">
-                Market Activity Distribution
-              </h4>
-              <div className="flex h-4 bg-gray-200 rounded-full overflow-hidden">
-                {stats.v1Markets > 0 && (
-                  <div
-                    className="bg-blue-500 flex items-center justify-center text-xs text-white font-medium"
-                    style={{
-                      width: `${
-                        (stats.v1Markets /
-                          (stats.v1Markets + stats.v2Markets)) *
-                        100
-                      }%`,
-                      minWidth: stats.v1Markets > 0 ? "20%" : "0%",
-                    }}
-                  >
-                    {stats.v1Markets > 0 &&
-                      (
-                        (stats.v1Markets /
-                          (stats.v1Markets + stats.v2Markets)) *
-                        100
-                      ).toFixed(0)}
-                    %
-                  </div>
-                )}
-                {stats.v2Markets > 0 && (
-                  <div
-                    className="bg-green-500 flex items-center justify-center text-xs text-white font-medium"
-                    style={{
-                      width: `${
-                        (stats.v2Markets /
-                          (stats.v1Markets + stats.v2Markets)) *
-                        100
-                      }%`,
-                      minWidth: stats.v2Markets > 0 ? "20%" : "0%",
-                    }}
-                  >
-                    {stats.v2Markets > 0 &&
-                      (
-                        (stats.v2Markets /
-                          (stats.v1Markets + stats.v2Markets)) *
-                        100
-                      ).toFixed(0)}
-                    %
-                  </div>
-                )}
-              </div>
-              <div className="flex justify-between mt-2 text-sm text-gray-600">
-                <span>V1 Binary: {stats.v1Markets} markets</span>
-                <span>V2 Multi-Option: {stats.v2Markets} markets</span>
               </div>
             </div>
           </CardContent>

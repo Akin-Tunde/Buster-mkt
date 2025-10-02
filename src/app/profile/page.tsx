@@ -34,15 +34,15 @@ export default function ProfilePage() {
               <div className="lg:col-span-1 space-y-6">
                 <UserStats />
 
-                {/* V2 Analytics Quick Access */}
+                {/* V2 Analytics Quick Access
                 <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-purple-50">
                   <CardContent className="p-6">
                     <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <BarChart3 className="h-5 w-5 text-blue-600" />
-                      V2 Analytics
+                      Analytics
                     </h3>
                     <p className="text-sm text-gray-600 mb-4">
-                      Access advanced analytics for V2 prediction markets
+                      Access advanced analytics for prediction markets
                     </p>
                     <div className="grid grid-cols-2 gap-3">
                       <Link href="/analytics?tab=portfolio">
@@ -87,7 +87,7 @@ export default function ProfilePage() {
                       </Link>
                     </div>
                   </CardContent>
-                </Card>
+                </Card> */}
               </div>
 
               {/* Activity Feed */}
@@ -98,7 +98,7 @@ export default function ProfilePage() {
                       Activity Feed
                     </h2>
                     <Badge variant="outline" className="text-sm">
-                      Recent Votes
+                      Recent Markets
                     </Badge>
                   </div>
                   <VoteHistory />

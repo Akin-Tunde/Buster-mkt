@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "./ui/card";
 import { Button } from "./ui/button";
+import { Slot } from "@radix-ui/react-slot";
 import { useAccount, useReadContract } from "wagmi";
 import {
   V2contractAddress,
@@ -18,11 +19,13 @@ import {
   PolicastViews,
   PolicastViewsAbi,
 } from "@/constants/contract";
+import { TrendingUp, TrendingDown, MessageCircle, Gift } from "lucide-react";
 import { MultiOptionProgress } from "./multi-option-progress";
 import MarketTime from "./market-time";
 import { MarketResolved } from "./market-resolved";
 import { MarketPending } from "./market-pending";
 import { MarketV2BuyInterface } from "./market-v2-buy-interface";
+import { MarketV2SellInterface } from "./MarketV2SellInterface";
 import { MarketV2SharesDisplay } from "./market-v2-shares-display";
 import { sdk } from "@farcaster/miniapp-sdk";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -30,7 +33,6 @@ import {
   faShareFromSquare,
   faUpRightAndDownLeftFromCenter,
 } from "@fortawesome/free-solid-svg-icons";
-import { MessageCircle, Gift } from "lucide-react";
 import { MarketV2, MarketOption, MarketCategory } from "@/types/types";
 import { FreeMarketClaimStatus } from "./FreeMarketClaimStatus";
 import { FreeTokenClaimButton } from "./FreeTokenClaimButton";
@@ -159,6 +161,7 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   const [commentCount, setCommentCount] = useState<number>(0);
   const [options, setOptions] = useState<MarketOption[]>([]);
   const [totalVolume, setTotalVolume] = useState<bigint>(0n);
+  const [activeInterface, setActiveInterface] = useState<"buy" | "sell">("buy");
   // Derived displayOptions: prefer detailed `options` (from /api) but fall back
   // to a lightweight representation built from the passed-in `market` so the
   // progress UI and other consumers can render immediately.
@@ -243,14 +246,89 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     }
   }, [derivedMarketType, index]);
 
-  // Fetch user shares for this market
-  const { data: userShares } = (useReadContract as any)({
+  // Fetch user shares for this market using getMarketOptionUserShares for each option
+  // This matches the approach used in MarketV2PositionManager
+  const userShares0Query = useReadContract({
     address: V2contractAddress,
     abi: V2contractAbi,
-    functionName: "getUserShares",
-    args: [BigInt(index), address as `0x${string}`],
-    query: { enabled: !!address },
+    functionName: "getMarketOptionUserShares",
+    args: [BigInt(index), 0n, address as `0x${string}`],
+    query: {
+      enabled: !!address && (market.options?.length ?? 0) > 0,
+      refetchInterval: 10000,
+    },
   });
+
+  const userShares1Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketOptionUserShares",
+    args: [BigInt(index), 1n, address as `0x${string}`],
+    query: {
+      enabled: !!address && (market.options?.length ?? 0) > 1,
+      refetchInterval: 10000,
+    },
+  });
+
+  const userShares2Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketOptionUserShares",
+    args: [BigInt(index), 2n, address as `0x${string}`],
+    query: {
+      enabled: !!address && (market.options?.length ?? 0) > 2,
+      refetchInterval: 10000,
+    },
+  });
+
+  const userShares3Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketOptionUserShares",
+    args: [BigInt(index), 3n, address as `0x${string}`],
+    query: {
+      enabled: !!address && (market.options?.length ?? 0) > 3,
+      refetchInterval: 10000,
+    },
+  });
+
+  const userShares4Query = useReadContract({
+    address: V2contractAddress,
+    abi: V2contractAbi,
+    functionName: "getMarketOptionUserShares",
+    args: [BigInt(index), 4n, address as `0x${string}`],
+    query: {
+      enabled: !!address && (market.options?.length ?? 0) > 4,
+      refetchInterval: 10000,
+    },
+  });
+
+  // Combine individual queries into an array
+  const userSharesQueries = [
+    userShares0Query,
+    userShares1Query,
+    userShares2Query,
+    userShares3Query,
+    userShares4Query,
+  ];
+
+  // Create userShares array from individual queries (matches PositionManager approach)
+  const userShares = userSharesQueries.map((query) =>
+    query?.data ? (query.data as bigint) : 0n
+  );
+
+  // Debug user shares
+  useEffect(() => {
+    console.log(
+      `[MarketV2Card ${index}] User shares array:`,
+      userShares.map((s, idx) => ({
+        optionId: idx,
+        shares: s.toString(),
+        hasShares: s > 0n,
+      })),
+      `| address: ${address}`
+    );
+  }, [userShares, index, address]);
 
   // Fetch options data: static from API (with cache-busting), real-time price from contract
   useEffect(() => {
@@ -291,8 +369,8 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
             let realTimePrice = 0n;
             try {
               const priceData = await (publicClient.readContract as any)({
-                address: V2contractAddress,
-                abi: V2contractAbi,
+                address: PolicastViews,
+                abi: PolicastViewsAbi,
                 functionName: "calculateCurrentPrice",
                 args: [BigInt(index), BigInt(i)],
               });
@@ -542,12 +620,14 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
   return (
     <Card key={index} className="flex flex-col">
       <CardHeader>
-        <div className="flex items-center justify-between mb-2">
-          <MarketTime
-            endTime={market.endTime}
-            earlyResolutionAllowed={market.earlyResolutionAllowed}
-          />
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 mb-2">
+          <div className="flex justify-between items-center">
+            <MarketTime
+              endTime={market.endTime}
+              earlyResolutionAllowed={market.earlyResolutionAllowed}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
             <CategoryBadge category={market.category} />
             {isInvalidated && <InvalidatedBadge />}
             {/* Show free market badge if marketType === 1 */}
@@ -613,67 +693,139 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
             <MarketPending />
           )
         ) : (
-          <MarketV2BuyInterface marketId={index} market={market} />
+          <div className="space-y-3">
+            {/* Tab-style Buy/Sell Toggle */}
+            <div className="border-b border-slate-200 dark:border-slate-800 -mx-1.5">
+              <nav className="flex -mb-px">
+                <button
+                  onClick={() => setActiveInterface("buy")}
+                  className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeInterface === "buy"
+                      ? "border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-500"
+                      : "border-transparent text-slate-500 hover:border-slate-300 dark:text-slate-400 dark:hover:border-slate-700"
+                  }`}
+                >
+                  <TrendingUp className="h-3.5 w-3.5" /> Buy
+                </button>
+                <button
+                  onClick={() => setActiveInterface("sell")}
+                  className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeInterface === "sell"
+                      ? "border-red-600 text-red-600 dark:border-red-500 dark:text-red-500"
+                      : "border-transparent text-slate-500 hover:border-slate-300 dark:text-slate-400 dark:hover:border-slate-700"
+                  }`}
+                >
+                  <TrendingDown className="h-3.5 w-3.5" /> Sell
+                </button>
+              </nav>
+            </div>
+
+            {/* Conditional Interface */}
+            {activeInterface === "buy" ? (
+              <MarketV2BuyInterface marketId={index} market={market} />
+            ) : (
+              <MarketV2SellInterface
+                marketId={index}
+                market={market}
+                userShares={userShares}
+                onSellComplete={() => {
+                  // Trigger event to refresh market data
+                  window.dispatchEvent(
+                    new CustomEvent("market-updated", {
+                      detail: { marketId: index },
+                    })
+                  );
+                  // Refetch user shares
+                  userSharesQueries.forEach((query) => query.refetch?.());
+                }}
+              />
+            )}
+
+            {/* Dedicated Position Card */}
+            {hasShares && (
+              <div className="mt-4 p-3 bg-white dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800">
+                <MarketV2SharesDisplay
+                  market={market}
+                  userShares={userShares || []}
+                  options={displayOptions}
+                />
+                <Link href={`/market/${index}/details`}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full mt-2 text-xs"
+                  >
+                    Manage Position
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
 
-      <CardFooter className="flex justify-between items-center pt-4">
-        <div className="flex items-center gap-2">
-          {hasShares ? (
-            <>
-              <MarketV2SharesDisplay
-                market={market}
-                userShares={userShares || []}
-                options={displayOptions}
-              />
-              <Link href={`/market/${index}/details`}>
-                <Button variant="outline" size="sm" className="text-xs">
-                  Manage Position
-                </Button>
-              </Link>
-            </>
-          ) : (
-            <div />
-          )}
-        </div>
-
-        <div className="flex items-center space-x-2">
-          {/* Comment count indicator */}
-          {commentCount > 0 && (
-            <div className="flex items-center text-gray-500 text-xs mr-2">
-              <MessageCircle className="w-3 h-3 mr-1" />
-              <span>{commentCount}</span>
-            </div>
-          )}
-
-          {/* Share button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleShare}
-            className="p-1 h-8 w-8"
-            title="Share market"
-          >
-            <FontAwesomeIcon
-              icon={faShareFromSquare}
-              className="h-3 w-3 text-gray-500"
-            />
-          </Button>
-
-          {/* Details link */}
-          <Link href={`/market/${index}/details`} passHref>
+      <CardFooter className="pt-4 border-t border-slate-200 dark:border-slate-800">
+        <div className="grid grid-cols-3 gap-4 w-full">
+          {/* Comments Button */}
+          <div className="flex flex-col items-center gap-1">
             <Button
               variant="ghost"
               size="sm"
-              className="p-1 h-8 w-8"
-              title="View details"
+              className="flex flex-col items-center justify-center h-auto p-2 w-full"
+              asChild
             >
-              <FontAwesomeIcon
-                icon={faUpRightAndDownLeftFromCenter}
-                className="h-3 w-3 text-gray-500"
-              />
+              <Link href={`/market/${index}/details#comments`}>
+                <div className="flex items-center justify-center size-9 rounded-full bg-slate-100 dark:bg-slate-800/50 mb-1">
+                  <MessageCircle className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                </div>
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  {commentCount > 0 ? `${commentCount} comments` : "Comments"}
+                </span>
+              </Link>
             </Button>
-          </Link>
+          </div>
+
+          {/* Share Button */}
+          <div className="flex flex-col items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleShare}
+              className="flex flex-col items-center justify-center h-auto p-2 w-full"
+            >
+              <div className="flex items-center justify-center size-9 rounded-full bg-slate-100 dark:bg-slate-800/50 mb-1">
+                <FontAwesomeIcon
+                  icon={faShareFromSquare}
+                  className="h-4 w-4 text-slate-600 dark:text-slate-400"
+                />
+              </div>
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                Share
+              </span>
+            </Button>
+          </div>
+
+          {/* Details Button */}
+          <div className="flex flex-col items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex flex-col items-center justify-center h-auto p-2 w-full"
+              asChild
+            >
+              <Link href={`/market/${index}/details`}>
+                <div className="flex items-center justify-center size-9 rounded-full bg-slate-100 dark:bg-slate-800/50 mb-1">
+                  <FontAwesomeIcon
+                    icon={faUpRightAndDownLeftFromCenter}
+                    className="h-4 w-4 text-slate-600 dark:text-slate-400"
+                  />
+                </div>
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Details
+                </span>
+              </Link>
+            </Button>
+          </div>
         </div>
       </CardFooter>
     </Card>

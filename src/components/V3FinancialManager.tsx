@@ -118,6 +118,19 @@ export function V3FinancialManager({
       query: { enabled: isConnected && Boolean(address) },
     });
 
+  // Fetch accurate unrealized PnL from PolicastViews
+  const { data: calculatedUnrealizedPnL, refetch: refetchUnrealizedPnL } =
+    useReadContract({
+      address: PolicastViews,
+      abi: PolicastViewsAbi,
+      functionName: "calculateUnrealizedPnL",
+      args: address ? [address] : undefined,
+      query: {
+        enabled: isConnected && Boolean(address),
+        refetchInterval: 10000,
+      },
+    });
+
   // Fetch platform fee breakdown instead of platform stats
   const { data: platformFeeBreakdown, refetch: refetchPlatformFeeBreakdown } =
     useReadContract({
@@ -179,6 +192,7 @@ export function V3FinancialManager({
         refetchFeeStatus(),
         refetchMarketFinancials(),
         refetchUserPortfolio(),
+        refetchUnrealizedPnL(),
         isFeeCollector ? refetchPlatformFeeBreakdown() : Promise.resolve(),
       ]);
       toast({
@@ -252,7 +266,9 @@ export function V3FinancialManager({
     : undefined;
   const totalInvested = portfolio?.[0] ?? 0n;
   const totalWinnings = portfolio?.[1] ?? 0n;
-  const unrealizedPnL = portfolio?.[2] ?? 0n;
+  // Use calculated unrealized PnL from PolicastViews instead of stored value
+  const unrealizedPnL =
+    (calculatedUnrealizedPnL as bigint) ?? portfolio?.[2] ?? 0n;
   const realizedPnL = portfolio?.[3] ?? 0n;
   const tradeCount = portfolio?.[4] ?? 0n;
 

@@ -29,6 +29,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { MarketV2 } from "@/types/types";
 import { ValidationNotice } from "./ValidationNotice";
 import { FreeTokenClaimButton } from "./FreeTokenClaimButton";
+import { MarketV2SharesDisplay } from "./market-v2-shares-display";
 
 interface MarketV2BuyInterfaceProps {
   marketId: number;
@@ -123,6 +124,15 @@ export function MarketV2BuyInterface({
     abi: V2contractAbi,
     functionName: "getMarketExtendedMeta",
     args: [BigInt(marketId)],
+  });
+
+  // Fetch user shares for this market
+  const { data: userShares } = useReadContract({
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
+    functionName: "getUserShares",
+    args: [BigInt(marketId), accountAddress as `0x${string}`],
+    query: { enabled: !!accountAddress },
   });
 
   // Get market odds directly from contract
@@ -1292,6 +1302,27 @@ export function MarketV2BuyInterface({
                 // Refresh market data after claiming
                 // Optionally show a success message or update UI
               }}
+            />
+          </div>
+        )}
+
+        {/* User's current shares display */}
+        {isConnected && userShares && (
+          <div className="mb-3 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-md border">
+            <MarketV2SharesDisplay
+              market={market}
+              userShares={userShares as readonly bigint[]}
+              options={market.options.map((opt, idx) => ({
+                name:
+                  typeof opt === "string"
+                    ? opt
+                    : (opt as any)?.name || `Option ${idx + 1}`,
+                description: "",
+                totalShares: 0n,
+                totalVolume: 0n,
+                currentPrice: 0n,
+                isActive: true,
+              }))}
             />
           </div>
         )}

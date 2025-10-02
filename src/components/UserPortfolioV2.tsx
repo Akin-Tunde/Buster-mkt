@@ -106,6 +106,18 @@ export function UserPortfolioV2() {
     refetch: refetchPortfolio,
   } = useUserPortfolio(accountAddress!);
 
+  // Fetch accurate unrealized PnL from PolicastViews
+  const { data: calculatedUnrealizedPnL } = (useReadContract as any)({
+    address: PolicastViews,
+    abi: PolicastViewsAbi,
+    functionName: "calculateUnrealizedPnL",
+    args: [accountAddress as `0x${string}`],
+    query: {
+      enabled: !!accountAddress,
+      refetchInterval: 10000,
+    },
+  });
+
   useEffect(() => {
     if (symbolData) setTokenSymbol(symbolData as string);
     if (decimalsData) setTokenDecimals(Number(decimalsData));
@@ -146,10 +158,13 @@ export function UserPortfolioV2() {
       }
 
       // Set portfolio basic data - convert bigint tradeCount to number
+      // Use calculated unrealized PnL from contract instead of stored value
       const portfolioInfo: UserPortfolio = {
         totalInvested: portfolioData.totalInvested,
         totalWinnings: portfolioData.totalWinnings,
-        unrealizedPnL: portfolioData.unrealizedPnL,
+        unrealizedPnL: calculatedUnrealizedPnL
+          ? (calculatedUnrealizedPnL as bigint).toString()
+          : portfolioData.unrealizedPnL,
         realizedPnL: portfolioData.realizedPnL,
         tradeCount: Number(portfolioData.tradeCount), // Convert bigint to number
       };

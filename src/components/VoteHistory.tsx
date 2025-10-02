@@ -15,6 +15,8 @@ import {
   V2contractAbi,
   tokenAddress as defaultTokenAddress,
   tokenAbi as defaultTokenAbi,
+  PolicastViews,
+  PolicastViewsAbi,
 } from "@/constants/contract";
 
 const CACHE_KEY = "vote_history_cache_v6"; // Updated for V2 support
@@ -168,8 +170,8 @@ export function VoteHistory() {
     try {
       // Get user portfolio to find trade count
       const portfolioParams: any = {
-        address: V2contractAddress,
-        abi: V2contractAbi,
+        address: PolicastViews,
+        abi: PolicastViewsAbi,
         functionName: "getUserPortfolio",
         args: [address],
       };
@@ -615,7 +617,7 @@ export function VoteHistory() {
                       maximumFractionDigits: 2,
                     })}{" "}
                     <span className="text-xs font-medium text-gray-600">
-                      {tokenSymbol}
+                      shares
                     </span>
                   </div>
                   <div className="text-xs text-gray-500">
