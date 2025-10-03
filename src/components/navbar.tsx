@@ -96,6 +96,8 @@ export function Navbar() {
           return "Coinbase Wallet";
         case "metaMask":
           return "MetaMask";
+        case "walletConnect":
+          return "WalletConnect";
         default:
           return connectorId;
       }
