@@ -4,7 +4,7 @@ import { createConfig, http, WagmiProvider } from "wagmi";
 import { base } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
-import { coinbaseWallet, metaMask } from "wagmi/connectors";
+import { coinbaseWallet, metaMask, walletConnect } from "wagmi/connectors";
 // import { APP_NAME, APP_ICON_URL, APP_URL } from "@lib/constants";
 import { useEffect, useState, createContext, useContext } from "react";
 import { useConnect, useAccount, useDisconnect } from "wagmi";
@@ -88,6 +88,16 @@ export const config = createConfig({
       dappMetadata: {
         name: APP_NAME,
         // url: window.ethereum,
+      },
+    }),
+    walletConnect({
+      projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
+      showQrModal: true,
+      metadata: {
+        name: APP_NAME,
+        description: "Policast - Social podcasting on Farcaster",
+        url: APP_URL,
+        icons: [APP_ICON_URL],
       },
     }),
   ],
