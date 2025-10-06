@@ -5,10 +5,27 @@ import { Suspense } from "react";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Policast",
-  description: "Political Prediction Market!",
+  title: "Policast - Political Prediction Markets | Trade on Politics",
+  description: "Join the decentralized political prediction market. Bet on election outcomes, policy decisions, and political events with crypto. Secure, transparent, and community-driven.",
+  keywords: ["political prediction markets", "election betting", "political trading", "crypto betting", "decentralized markets", "blockchain predictions"],
   openGraph: {
-    title: "Policast",
+    title: "Policast - Political Prediction Markets",
+    description: "Join the decentralized political prediction market. Bet on election outcomes, policy decisions, and political events with crypto.",
+    images: [
+      {
+        url: "/icon.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Policast - Political Prediction Markets",
+      },
+    ],
+    type: "website",
+    url: "https://buster-mkt.vercel.app",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Policast - Political Prediction Markets",
+    description: "Join the decentralized political prediction market. Bet on election outcomes, policy decisions, and political events with crypto.",
     images: ["/icon.jpg"],
   },
   other: {

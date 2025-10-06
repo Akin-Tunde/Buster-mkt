@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
-import WagmiProvider from "@/components/WagmiProvider"; // Import the provider
+import WagmiProvider from "@/components/WagmiProvider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { StructuredData } from "@/components/StructuredData";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -17,8 +18,73 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "POLICAST",
-  description: "political prediction market",
+  title: "Policast - Political Prediction Markets",
+  description:
+    "Trade on political outcomes with confidence. Decentralized prediction markets for politics, powered by blockchain technology.",
+  keywords: [
+    "prediction markets",
+    "political betting",
+    "decentralized",
+    "blockchain",
+    "crypto",
+    "politics",
+    "trading",
+  ],
+  authors: [{ name: "Policast Team" }],
+  creator: "Policast",
+  publisher: "Policast",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_URL || "https://buster-mkt.vercel.app"
+  ),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Policast - Political Prediction Markets",
+    description:
+      "Trade on political outcomes with confidence. Decentralized prediction markets for politics, powered by blockchain technology.",
+    url: process.env.NEXT_PUBLIC_URL || "https://buster-mkt.vercel.app",
+    siteName: "Policast",
+    images: [
+      {
+        url: "/icon.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Policast - Political Prediction Markets",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Policast - Political Prediction Markets",
+    description:
+      "Trade on political outcomes with confidence. Decentralized prediction markets for politics, powered by blockchain technology.",
+    images: ["/icon.jpg"],
+    creator: "@policastapp",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    nocache: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      noimageindex: false,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  verification: {
+    google: process.env.GOOGLE_SITE_VERIFICATION,
+  },
 };
 
 export default function RootLayout({
@@ -28,6 +94,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <StructuredData metadata={metadata} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
