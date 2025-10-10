@@ -39,6 +39,12 @@ interface MarketImageDataV2 {
   winningOptionId: number;
   creator: string;
   version: "v2";
+  options: Array<{
+    name: string;
+    totalShares: bigint;
+    currentPrice: bigint;
+  }>;
+  totalVolume: bigint;
 }
 
 type MarketImageData = MarketImageDataV1 | MarketImageDataV2;
@@ -115,16 +121,58 @@ async function fetchMarketData(marketId: string): Promise<MarketImageData> {
       const winningOptionId = Number(v2Arr[9] ?? 0);
 
       // totalVolume may be present at index 10 in the 13-element shape; if missing, set 0n
-      const totalVolumeRaw = v2Arr.length > 12 ? v2Arr[10] : undefined;
       const creatorRaw = v2Arr.length > 12 ? v2Arr[11] : v2Arr[10];
       const earlyResolutionAllowedRaw =
         v2Arr.length > 12 ? v2Arr[12] : v2Arr[11];
 
-      const totalVolume = totalVolumeRaw ? BigInt(totalVolumeRaw) : 0n;
       const creator = creatorRaw ? String(creatorRaw) : "";
       const earlyResolutionAllowed = Boolean(earlyResolutionAllowedRaw);
 
       console.log(`Market Image API: Found V2 market ${marketId}:`, v2Arr);
+
+      // Fetch all options for this V2 market
+      const options: Array<{
+        name: string;
+        totalShares: bigint;
+        currentPrice: bigint;
+      }> = [];
+      let calculatedTotalVolume = 0n;
+
+      for (let i = 0; i < optionCount; i++) {
+        try {
+          const optionData = await publicClient.readContract({
+            address: V2contractAddress,
+            abi: V2contractAbi,
+            functionName: "getMarketOption",
+            args: [marketIdBigInt, BigInt(i)],
+          });
+
+          const [name, , totalShares, optionVolume, currentPrice] =
+            optionData as [string, string, bigint, bigint, bigint, boolean];
+
+          options.push({
+            name,
+            totalShares,
+            currentPrice,
+          });
+
+          calculatedTotalVolume += optionVolume;
+        } catch (error) {
+          console.error(
+            `Error fetching option ${i} for market ${marketId}:`,
+            error
+          );
+          options.push({
+            name: `Option ${i + 1}`,
+            totalShares: 0n,
+            currentPrice: 0n,
+          });
+        }
+      }
+
+      console.log(
+        `Market Image API: Fetched ${options.length} options for market ${marketId}`
+      );
 
       return {
         question,
@@ -139,6 +187,8 @@ async function fetchMarketData(marketId: string): Promise<MarketImageData> {
         winningOptionId,
         creator,
         version: "v2",
+        options,
+        totalVolume: calculatedTotalVolume,
       };
     } catch (error) {
       // V2 market doesn't exist, try V1
@@ -340,25 +390,69 @@ export async function GET(request: NextRequest) {
         : text;
     };
 
-    let aPercentage = 50;
-    let bPercentage = 50;
-    let optionAText = "";
-    let optionBText = "";
+    // Calculate percentages for V2 options
+    let optionsData: Array<{
+      name: string;
+      percentage: number;
+      color: string;
+    }> = [];
+    let totalVolumeFormatted = "0";
 
     if (market.version === "v1") {
       const total = market.totalOptionAShares + market.totalOptionBShares;
-      aPercentage =
+      const aPercentage =
         total > 0n ? Number((market.totalOptionAShares * 100n) / total) : 50;
-      bPercentage =
+      const bPercentage =
         total > 0n ? Number((market.totalOptionBShares * 100n) / total) : 50;
-      optionAText = truncateText(market.optionA, 40);
-      optionBText = truncateText(market.optionB, 40);
+
+      optionsData = [
+        {
+          name: truncateText(market.optionA, 30),
+          percentage: aPercentage,
+          color: colors.primary,
+        },
+        {
+          name: truncateText(market.optionB, 30),
+          percentage: bPercentage,
+          color: colors.secondary,
+        },
+      ];
+
+      totalVolumeFormatted = (Number(total) / 10 ** 18).toLocaleString(
+        undefined,
+        { maximumFractionDigits: 0 }
+      );
     } else {
-      // For V2, we'll show different information
-      optionAText = `${market.optionCount} Options`;
-      optionBText = market.resolved ? `Resolved` : `Active`;
-      aPercentage = market.resolved ? 100 : 0;
-      bPercentage = market.resolved ? 0 : 100;
+      // V2 market - calculate percentages from total shares
+      const totalShares = market.options.reduce(
+        (sum, opt) => sum + opt.totalShares,
+        0n
+      );
+
+      const optionColors = [
+        "#2563eb", // blue
+        "#7c3aed", // purple
+        "#059669", // green
+        "#dc2626", // red
+        "#f59e0b", // amber
+        "#06b6d4", // cyan
+        "#ec4899", // pink
+        "#8b5cf6", // violet
+      ];
+
+      optionsData = market.options.map((opt, idx) => ({
+        name: truncateText(opt.name, 25),
+        percentage:
+          totalShares > 0n
+            ? Number((opt.totalShares * 100n) / totalShares)
+            : Math.floor(100 / market.options.length),
+        color: optionColors[idx % optionColors.length],
+      }));
+
+      totalVolumeFormatted = (
+        Number(market.totalVolume) /
+        10 ** 18
+      ).toLocaleString(undefined, { maximumFractionDigits: 0 });
     }
 
     const timeStatus = formatTimeStatus(market.endTime);
@@ -367,8 +461,9 @@ export async function GET(request: NextRequest) {
 
     // Dynamic font sizing based on question length
     const questionFontSize =
-      market.question.length > 80 ? 28 : market.question.length > 50 ? 32 : 36;
-    const optionFontSize = 18;
+      market.question.length > 80 ? 26 : market.question.length > 50 ? 30 : 34;
+    const optionFontSize =
+      market.version === "v2" && market.optionCount > 3 ? 14 : 16;
 
     const jsx = (
       <div
@@ -484,111 +579,73 @@ export async function GET(request: NextRequest) {
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "20px",
+              gap:
+                market.version === "v2" && market.optionCount > 3
+                  ? "12px"
+                  : "18px",
               flex: 1,
             }}
           >
-            {/* Option A */}
-            <div style={{ display: "flex", flexDirection: "column" }}>
+            {optionsData.map((option, idx) => (
               <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "8px",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: `${optionFontSize}px`,
-                    fontWeight: "600",
-                    color: colors.text.primary,
-                  }}
-                >
-                  {optionAText}
-                </span>
-                <span
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                    color: colors.primary,
-                  }}
-                >
-                  {aPercentage}%
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  width: "100%",
-                  height: "12px",
-                  backgroundColor: "#e5e7eb",
-                  borderRadius: "6px",
-                  overflow: "hidden",
-                }}
+                key={idx}
+                style={{ display: "flex", flexDirection: "column" }}
               >
                 <div
                   style={{
                     display: "flex",
-                    width: `${aPercentage}%`,
-                    height: "100%",
-                    background: colors.gradient.primary,
-                    borderRadius: "6px",
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Option B */}
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "8px",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: `${optionFontSize}px`,
-                    fontWeight: "600",
-                    color: colors.text.primary,
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "6px",
                   }}
                 >
-                  {optionBText}
-                </span>
-                <span
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                    color: colors.secondary,
-                  }}
-                >
-                  {bPercentage}%
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  width: "100%",
-                  height: "12px",
-                  backgroundColor: "#e5e7eb",
-                  borderRadius: "6px",
-                  overflow: "hidden",
-                }}
-              >
+                  <span
+                    style={{
+                      fontSize: `${optionFontSize}px`,
+                      fontWeight: "600",
+                      color: colors.text.primary,
+                    }}
+                  >
+                    {option.name}
+                  </span>
+                  <span
+                    style={{
+                      fontSize:
+                        market.version === "v2" && market.optionCount > 3
+                          ? "16px"
+                          : "18px",
+                      fontWeight: "bold",
+                      color: option.color,
+                    }}
+                  >
+                    {option.percentage.toFixed(1)}%
+                  </span>
+                </div>
                 <div
                   style={{
                     display: "flex",
-                    width: `${bPercentage}%`,
-                    height: "100%",
-                    backgroundColor: colors.secondary,
+                    width: "100%",
+                    height:
+                      market.version === "v2" && market.optionCount > 3
+                        ? "8px"
+                        : "10px",
+                    backgroundColor: "#e5e7eb",
                     borderRadius: "6px",
+                    overflow: "hidden",
                   }}
-                />
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      width: `${option.percentage}%`,
+                      height: "100%",
+                      backgroundColor: option.color,
+                      borderRadius: "6px",
+                    }}
+                  />
+                </div>
               </div>
-            </div>
+            ))}
           </div>
 
           {/* Footer stats */}
@@ -597,8 +654,8 @@ export async function GET(request: NextRequest) {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginTop: "25px",
-              padding: "20px",
+              marginTop: "20px",
+              padding: "18px 24px",
               background: colors.gradient.footer,
               borderRadius: "12px",
               border: `1px solid ${colors.border}`,
@@ -614,7 +671,7 @@ export async function GET(request: NextRequest) {
               <div
                 style={{
                   display: "flex",
-                  fontSize: "14px",
+                  fontSize: "13px",
                   color: colors.text.secondary,
                   marginBottom: "4px",
                 }}
@@ -624,19 +681,40 @@ export async function GET(request: NextRequest) {
               <div
                 style={{
                   display: "flex",
-                  fontSize: "18px",
+                  fontSize: "16px",
                   fontWeight: "bold",
                   color: colors.text.primary,
                 }}
               >
-                {market.version === "v1"
-                  ? `${(
-                      Number(
-                        market.totalOptionAShares + market.totalOptionBShares
-                      ) /
-                      10 ** 18
-                    ).toLocaleString()} buster`
-                  : "Multi-Option Market"}
+                {totalVolumeFormatted} BSTR
+              </div>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: "13px",
+                  color: colors.text.secondary,
+                  marginBottom: "4px",
+                }}
+              >
+                Options
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  fontSize: "16px",
+                  fontWeight: "bold",
+                  color: colors.text.primary,
+                }}
+              >
+                {optionsData.length}
               </div>
             </div>
             {market.resolved && (
@@ -650,7 +728,7 @@ export async function GET(request: NextRequest) {
                 <div
                   style={{
                     display: "flex",
-                    fontSize: "14px",
+                    fontSize: "13px",
                     color: colors.text.secondary,
                     marginBottom: "4px",
                   }}
@@ -660,7 +738,7 @@ export async function GET(request: NextRequest) {
                 <div
                   style={{
                     display: "flex",
-                    fontSize: "18px",
+                    fontSize: "16px",
                     fontWeight: "bold",
                     color: colors.success,
                   }}
@@ -670,9 +748,13 @@ export async function GET(request: NextRequest) {
                         market.outcome === 1
                           ? market.optionA!
                           : market.optionB!,
-                        30
+                        20
                       )
-                    : `Option ${Number(market.winningOptionId) + 1}`}
+                    : truncateText(
+                        optionsData[Number(market.winningOptionId)]?.name ||
+                          `Option ${Number(market.winningOptionId) + 1}`,
+                        20
+                      )}
                 </div>
               </div>
             )}
