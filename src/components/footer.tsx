@@ -34,14 +34,14 @@ export function Footer() {
       icon: Trophy,
       label: "Leaderboard",
     },
-    { hrefBase: "/profile", tabValue: "", icon: User, label: "Profile" },
+    { hrefBase: "/", tabValue: "profile", icon: User, label: "Profile" },
   ];
 
   // Add admin item only for authorized users
   const allNavItems = [
     ...navItems,
     ...(hasCreatorAccess || hasResolverAccess || isAdmin
-      ? [{ hrefBase: "/admin", tabValue: "", icon: Settings, label: "Admin" }]
+      ? [{ hrefBase: "/", tabValue: "admin", icon: Settings, label: "Admin" }]
       : []),
   ];
 
@@ -51,7 +51,7 @@ export function Footer() {
       setShowInfo(false);
     }
 
-    // For home page tabs, update URL without full reload
+    // For all home page tabs (active, ended, leaderboard, profile, admin), update URL without full reload
     if (hrefBase === "/" && tabValue) {
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.set("tab", tabValue);
@@ -63,7 +63,7 @@ export function Footer() {
         new CustomEvent("tabChange", { detail: { tab: tabValue } })
       );
     } else {
-      // For non-tab navigation (profile, admin), use normal routing
+      // For any other navigation, use normal routing
       router.push(hrefBase);
     }
   };

@@ -12,10 +12,23 @@ import { useRouter, usePathname } from "next/navigation";
 import { Navbar } from "./navbar";
 import { UnifiedMarketList } from "./unified-market-list";
 import { ValidatedMarketList } from "./ValidatedMarketList";
+import { useUserRoles } from "@/hooks/useUserRoles";
 // import { MarketValidationBanner } from "./ValidationNotice";//
-import { BarChart3, TrendingUp, ArrowRight } from "lucide-react";
+import {
+  BarChart3,
+  TrendingUp,
+  ArrowRight,
+  User as UserIcon,
+  Wallet,
+  Activity,
+  PieChart,
+} from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { VoteHistory } from "./VoteHistory";
+import { useFarcasterUser } from "@/hooks/useFarcasterUser";
+import { Badge } from "./ui/badge";
+import { ModernAdminDashboard } from "./ModernAdminDashboard";
 
 type LeaderboardEntry = {
   username: string;
@@ -27,9 +40,11 @@ type LeaderboardEntry = {
 };
 
 export function EnhancedPredictionMarketDashboard() {
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const router = useRouter();
   const currentPathname = usePathname();
+  const farcasterUser = useFarcasterUser();
+  const { hasCreatorAccess, hasResolverAccess, isAdmin } = useUserRoles();
 
   // Initialize with a fixed default. Will be updated from URL after client mount.
   const [activeTab, setActiveTab] = useState("active");
@@ -191,7 +206,7 @@ export function EnhancedPredictionMarketDashboard() {
         >
           <TabsList
             className={`grid w-full ${
-              actualShowVoteHistory ? "grid-cols-4" : "grid-cols-3"
+              actualShowVoteHistory ? "grid-cols-5" : "grid-cols-4"
             } overflow-x-auto whitespace-nowrap hidden md:grid`}
           >
             <TabsTrigger value="active" className="text-xs px-2">
@@ -203,9 +218,17 @@ export function EnhancedPredictionMarketDashboard() {
             <TabsTrigger value="leaderboard" className="text-xs px-2">
               Leaderboard
             </TabsTrigger>
+            <TabsTrigger value="profile" className="text-xs px-2">
+              Profile
+            </TabsTrigger>
             {actualShowVoteHistory && (
               <TabsTrigger value="myvotes" className="text-xs px-2">
                 My Shares
+              </TabsTrigger>
+            )}
+            {(hasCreatorAccess || hasResolverAccess || isAdmin) && (
+              <TabsTrigger value="admin" className="text-xs px-2">
+                Admin
               </TabsTrigger>
             )}
           </TabsList>
@@ -346,9 +369,104 @@ export function EnhancedPredictionMarketDashboard() {
             </div>
           </TabsContent>
 
+          <TabsContent value="profile" className="mt-6">
+            {isConnected ? (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Stats Section */}
+                <div className="lg:col-span-1 space-y-6">
+                  <UserStats />
+
+                  {/* V2 Analytics Quick Access */}
+                  <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
+                    <CardContent className="p-6">
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5 text-blue-600" />
+                        Analytics
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Access advanced analytics for prediction markets
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Link href="/analytics?tab=portfolio">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900"
+                          >
+                            <PieChart className="h-4 w-4" />
+                            Portfolio
+                          </Button>
+                        </Link>
+                        <Link href="/analytics?tab=performance">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full flex items-center gap-2 hover:bg-purple-50 dark:hover:bg-purple-900"
+                          >
+                            <TrendingUp className="h-4 w-4" />
+                            Performance
+                          </Button>
+                        </Link>
+                        <Link href="/analytics?tab=markets">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full flex items-center gap-2 hover:bg-green-50 dark:hover:bg-green-900"
+                          >
+                            <BarChart3 className="h-4 w-4" />
+                            Markets
+                          </Button>
+                        </Link>
+                        <Link href="/analytics?tab=trades">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full flex items-center gap-2 hover:bg-orange-50 dark:hover:bg-orange-900"
+                          >
+                            <Activity className="h-4 w-4" />
+                            Trades
+                          </Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Vote History Section */}
+                <div className="lg:col-span-2">
+                  <VoteHistory />
+                </div>
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="p-4 bg-purple-100 dark:bg-purple-900 rounded-full">
+                      <Wallet className="h-12 w-12 text-purple-600 dark:text-purple-300" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                      Connect Your Wallet
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400 max-w-md">
+                      Connect your wallet to view your profile, track your
+                      predictions, and see your performance statistics.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
           {actualShowVoteHistory && (
             <TabsContent value="myvotes" className="mt-6">
               <UserStats />
+            </TabsContent>
+          )}
+
+          {/* Admin Tab Content */}
+          {(hasCreatorAccess || hasResolverAccess || isAdmin) && (
+            <TabsContent value="admin" className="mt-6">
+              <ModernAdminDashboard />
             </TabsContent>
           )}
         </Tabs>
