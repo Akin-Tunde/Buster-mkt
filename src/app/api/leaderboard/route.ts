@@ -179,76 +179,85 @@ export async function GET() {
     }[] = [];
 
     try {
-      // First, get the total number of participants in V2
-      // allParticipants is a public array, so we can get its length
+      // Fetch participants in parallel batches with a reasonable limit
+      const maxParticipantsToFetch = 500; // Limit to prevent timeout
+      const batchSize = 50; // Fetch 50 participants at a time
+
       let v2ParticipantIndex = 0;
       let hasMoreParticipants = true;
 
-      // Fetch participants in batches to avoid timeout
-      while (hasMoreParticipants && v2ParticipantIndex < 10000) {
-        // Safety limit
-        const batchPromises: Promise<any>[] = [];
-
-        // Fetch up to PAGE_SIZE participants at once
-        for (let i = 0; i < PAGE_SIZE; i++) {
+      while (
+        hasMoreParticipants &&
+        v2ParticipantIndex < maxParticipantsToFetch
+      ) {
+        // Fetch batch of participant addresses
+        const addressPromises: Promise<Address | null>[] = [];
+        for (let i = 0; i < batchSize; i++) {
           const currentIndex = v2ParticipantIndex + i;
-          batchPromises.push(
-            withRetry(() =>
-              publicClient.readContract({
+          addressPromises.push(
+            publicClient
+              .readContract({
                 address: V2contractAddress,
                 abi: V2contractAbi,
                 functionName: "allParticipants",
                 args: [BigInt(currentIndex)],
               })
-            ).catch(() => null) // Return null if index doesn't exist
+              .then((addr) => addr as Address)
+              .catch(() => null)
           );
         }
 
-        const batchResults = await Promise.all(batchPromises);
+        const addresses = await Promise.all(addressPromises);
+        const validAddresses = addresses.filter(
+          (addr): addr is Address => addr !== null
+        );
 
-        // Process batch results
-        for (const participantAddress of batchResults) {
-          if (!participantAddress) {
-            // No more participants
-            hasMoreParticipants = false;
-            break;
-          }
+        if (validAddresses.length === 0) {
+          hasMoreParticipants = false;
+          break;
+        }
 
-          // Fetch user portfolio for this participant
-          try {
-            const portfolio = (await withRetry(() =>
-              publicClient.readContract({
-                address: V2contractAddress,
-                abi: V2contractAbi,
-                functionName: "userPortfolios",
-                args: [participantAddress as Address],
-              })
-            )) as [bigint, bigint, bigint, bigint, bigint]; // [totalInvested, totalWinnings, unrealizedPnL, realizedPnL, tradeCount]
+        // Fetch portfolios for all valid addresses in parallel
+        const portfolioPromises = validAddresses.map((address) =>
+          publicClient
+            .readContract({
+              address: V2contractAddress,
+              abi: V2contractAbi,
+              functionName: "userPortfolios",
+              args: [address],
+            })
+            .then((portfolio) => ({
+              address,
+              portfolio: portfolio as [bigint, bigint, bigint, bigint, bigint],
+            }))
+            .catch(() => null)
+        );
 
-            const totalWinnings = portfolio[1]; // totalWinnings is at index 1
-            const tradeCount = Number(portfolio[4]); // tradeCount is at index 4
+        const portfolios = await Promise.all(portfolioPromises);
 
-            // Only add if user has winnings
-            if (totalWinnings > 0n) {
-              entriesV2.push({
-                user: participantAddress as Address,
-                totalWinnings,
-                voteCount: tradeCount,
-              });
-            }
-          } catch (portfolioError) {
-            console.warn(
-              `Failed to fetch V2 portfolio for ${participantAddress}:`,
-              portfolioError
-            );
+        // Process portfolios
+        for (const result of portfolios) {
+          if (!result) continue;
+
+          const { address, portfolio } = result;
+          const totalWinnings = portfolio[1]; // totalWinnings is at index 1
+          const tradeCount = Number(portfolio[4]); // tradeCount is at index 4
+
+          // Only add if user has winnings
+          if (totalWinnings > 0n) {
+            entriesV2.push({
+              user: address,
+              totalWinnings,
+              voteCount: tradeCount,
+            });
           }
         }
 
-        v2ParticipantIndex += PAGE_SIZE;
+        v2ParticipantIndex += batchSize;
 
-        // Stop if we didn't find any more participants in this batch
-        if (!hasMoreParticipants) {
-          break;
+        // If we got fewer addresses than batch size, we've reached the end
+        if (validAddresses.length < batchSize) {
+          hasMoreParticipants = false;
         }
       }
 
@@ -285,14 +294,15 @@ export async function GET() {
       if (existing) {
         combinedEntries.set(addr, {
           user: entry.user,
-          totalWinnings: existing.totalWinnings + entry.totalWinnings,
-          voteCount: existing.voteCount + entry.voteCount,
+          totalWinnings:
+            BigInt(existing.totalWinnings) + BigInt(entry.totalWinnings),
+          voteCount: Number(existing.voteCount) + Number(entry.voteCount),
         });
       } else {
         combinedEntries.set(addr, {
           user: entry.user,
-          totalWinnings: entry.totalWinnings,
-          voteCount: entry.voteCount,
+          totalWinnings: BigInt(entry.totalWinnings),
+          voteCount: Number(entry.voteCount),
         });
       }
     });
