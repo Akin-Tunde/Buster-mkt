@@ -29,6 +29,7 @@ import { VoteHistory } from "./VoteHistory";
 import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 import { Badge } from "./ui/badge";
 import { ModernAdminDashboard } from "./ModernAdminDashboard";
+import { SpendPermissionManager } from "./SpendPermissionManager";
 
 type LeaderboardEntry = {
   username: string;
@@ -375,6 +376,9 @@ export function EnhancedPredictionMarketDashboard() {
                 {/* Stats Section */}
                 <div className="lg:col-span-1 space-y-6">
                   <UserStats />
+
+                  {/* Seamless Trading Setup */}
+                  <SpendPermissionManager />
                 </div>
 
                 {/* Vote History Section */}
