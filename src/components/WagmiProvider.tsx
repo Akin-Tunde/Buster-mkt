@@ -4,43 +4,57 @@ import { createConfig, http, WagmiProvider } from "wagmi";
 import { base } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
-import { coinbaseWallet, metaMask, walletConnect } from "wagmi/connectors";
-// import { APP_NAME, APP_ICON_URL, APP_URL } from "@lib/constants";
+import { coinbaseWallet, walletConnect } from "wagmi/connectors";
 import { useEffect, useState, createContext, useContext } from "react";
 import { useConnect, useAccount, useDisconnect } from "wagmi";
 import React from "react";
 import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-// Constants
 
-const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!;
+// Constants with proper error handling
+const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 const APP_NAME: string = "Policast";
-const APP_URL: string = process.env.NEXT_PUBLIC_URL!;
-const APP_ICON_URL: string = `${APP_URL}/icon.png`;
+const APP_URL: string = process.env.NEXT_PUBLIC_URL || "";
+const APP_ICON_URL: string = APP_URL ? `${APP_URL}/icon.png` : "/icon.png";
 
-const wagmiAdapter = new WagmiAdapter({
-  networks: [base],
-  projectId,
-});
+if (!projectId) {
+  console.warn("NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set");
+}
 
-// Create AppKit instance
-export const appKit = createAppKit({
-  adapters: [wagmiAdapter],
-  networks: [base],
-  projectId,
-  metadata: {
-    name: "Policast",
-    description: "Policast - Social podcasting on Farcaster",
-    url: typeof window !== "undefined" ? window.location.origin : "",
-    icons: [`${APP_URL}/icon.png`],
-  },
-  features: {
-    email: true, // default to true
-    socials: ["farcaster"],
-    emailShowWallets: true, // default to true
-  },
-  allWallets: "SHOW", // default to SHOW
-});
+// Safely create WagmiAdapter only if projectId exists
+let wagmiAdapter: any = null;
+if (projectId) {
+  wagmiAdapter = new WagmiAdapter({
+    networks: [base],
+    projectId,
+  });
+}
+
+// Create AppKit instance only if we have a valid adapter
+export let appKit: any = null;
+if (wagmiAdapter && projectId) {
+  try {
+    appKit = createAppKit({
+      adapters: [wagmiAdapter],
+      networks: [base],
+      projectId,
+      metadata: {
+        name: "Policast",
+        description: "Policast - Social podcasting on Farcaster",
+        url: typeof window !== "undefined" ? window.location.origin : APP_URL,
+        icons: [APP_ICON_URL],
+      },
+      features: {
+        email: true,
+        socials: ["farcaster"],
+        emailShowWallets: true,
+      },
+      allWallets: "SHOW",
+    });
+  } catch (error) {
+    console.warn("Failed to initialize AppKit:", error);
+  }
+}
 
 // Wallet context and types
 interface WalletContextType {
@@ -98,31 +112,62 @@ function useCoinbaseWalletAutoConnect() {
   return isCoinbaseWallet;
 }
 
+// Create connectors with proper error handling
+function createConnectors() {
+  const connectors = [];
+
+  try {
+    connectors.push(miniAppConnector());
+  } catch (error) {
+    console.warn("Failed to initialize miniApp connector:", error);
+  }
+
+  try {
+    connectors.push(
+      coinbaseWallet({
+        appName: APP_NAME,
+        appLogoUrl: APP_ICON_URL,
+        preference: "all",
+      })
+    );
+  } catch (error) {
+    console.warn("Failed to initialize Coinbase Wallet connector:", error);
+  }
+
+  // Only add WalletConnect if projectId is available
+  if (projectId) {
+    try {
+      connectors.push(
+        walletConnect({
+          projectId,
+        })
+      );
+    } catch (error) {
+      console.warn("Failed to initialize WalletConnect connector:", error);
+    }
+  }
+
+  return connectors;
+}
+
 export const config = createConfig({
   chains: [base],
   transports: {
-    [base.id]: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL),
+    [base.id]: http(
+      process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL || `https://mainnet.base.org`
+    ),
   },
-  connectors: [
-    miniAppConnector(),
-    coinbaseWallet({
-      appName: APP_NAME,
-      appLogoUrl: APP_ICON_URL,
-      preference: "all",
-    }),
-    metaMask({
-      dappMetadata: {
-        name: APP_NAME,
-        // url: window.ethereum,
-      },
-    }),
-    walletConnect({
-      projectId,
-    }),
-  ],
+  connectors: createConnectors(),
 });
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 3,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    },
+  },
+});
 
 // Wrapper component that provides Coinbase Wallet auto-connection and wallet context
 function WalletProvider({ children }: { children: React.ReactNode }) {
@@ -146,16 +191,30 @@ function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const walletValue: WalletContextType = {
     connect: (connectorId?: string) => {
-      if (connectorId) {
-        const connector = wagmiConnectors.find((c) => c.id === connectorId);
-        if (connector) {
-          wagmiConnect({ connector });
+      try {
+        if (connectorId) {
+          const connector = wagmiConnectors.find((c) => c.id === connectorId);
+          if (connector) {
+            wagmiConnect({ connector });
+          } else {
+            console.warn(`Connector with id "${connectorId}" not found`);
+          }
+        } else if (primaryConnector) {
+          wagmiConnect({ connector: primaryConnector });
+        } else {
+          console.warn("No connectors available");
         }
-      } else if (primaryConnector) {
-        wagmiConnect({ connector: primaryConnector });
+      } catch (error) {
+        console.error("Failed to connect wallet:", error);
       }
     },
-    disconnect: wagmiDisconnect,
+    disconnect: () => {
+      try {
+        wagmiDisconnect();
+      } catch (error) {
+        console.error("Failed to disconnect wallet:", error);
+      }
+    },
     isConnected: wagmiIsConnected,
     isConnecting: wagmiIsConnecting,
     address,
