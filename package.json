@@ -21,10 +21,9 @@
     "@farcaster/auth-kit": "^0.6.0",
     "@farcaster/core": "^0.16.0",
     "@farcaster/frame-node": "^0.0.23",
-    "@farcaster/frame-sdk": "^0.0.41",
-    "@farcaster/frame-wagmi-connector": "^0.0.29",
-    "@farcaster/miniapp-sdk": "^0.1.8",
-    "@farcaster/miniapp-wagmi-connector": "^1.0.0",
+    "@farcaster/frame-wagmi-connector": "^1.0.0",
+    "@farcaster/miniapp-sdk": "^0.2.0",
+    "@farcaster/miniapp-wagmi-connector": "^1.1.0",
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@fortawesome/react-fontawesome": "^0.2.2",
@@ -40,6 +39,7 @@
     "@radix-ui/react-tabs": "^1.1.1",
     "@radix-ui/react-toast": "^1.2.2",
     "@reown/appkit": "^1.8.8",
+    "@reown/appkit-adapter-wagmi": "^1.8.12",
     "@reown/appkit-common": "^1.8.8",
     "@reown/appkit-universal-connector": "^1.8.8",
     "@reown/walletkit": "^1.2.11",
@@ -74,7 +74,7 @@
     "tailwindcss-animate": "^1.0.7",
     "thirdweb": "^5.64.2",
     "viem": "^2.26.3",
-    "wagmi": "^2.15.2"
+    "wagmi": "^2.19.2"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.16",

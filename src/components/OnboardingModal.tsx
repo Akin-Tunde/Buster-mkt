@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { sdk } from "@farcaster/frame-sdk";
+import { sdk } from "@farcaster/miniapp-sdk";
 // import { ClaimTokensButton } from "./ClaimTokensButton";
 import {
   Dialog,
@@ -36,9 +36,9 @@ export function OnboardingModal() {
       const handleFrameAdded = () => {
         setStep("buy");
       };
-      sdk.on("frameAdded", handleFrameAdded);
+      sdk.on("miniAppAdded", handleFrameAdded);
       return () => {
-        sdk.removeListener("frameAdded", handleFrameAdded);
+        sdk.removeListener("miniAppAdded", handleFrameAdded);
       };
     }
   }, []);
