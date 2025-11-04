@@ -131,7 +131,6 @@ A: Use cooldowns, allowlists, CAPTCHAs, or Sybil resistance tools. See Security 
 A: Yes! See the section below.
 
 ## Contributing
-
 Pull requests and issues are welcome! Please open an issue to discuss major changes. For new features, open a discussion first.
 
 ## License
