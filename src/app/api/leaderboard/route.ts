@@ -17,8 +17,8 @@ import {
 import { Address } from "viem";
 
 const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 }); // 1-hour TTL
-const CACHE_KEY = "leaderboard_v8"; // Updated version
-const NEYNAR_CACHE_KEY = "neynar_users_v8";
+const CACHE_KEY_PREFIX = "leaderboard_v9_"; // Updated version
+const NEYNAR_CACHE_KEY = "neynar_users_v9";
 const PAGE_SIZE = 100; // Users per V1 contract call
 const V2_BATCH_SIZE = 50; // Addresses per V2 multicall batch
 
@@ -35,13 +35,19 @@ interface NeynarUser {
 }
 
 interface LeaderboardEntry {
+  rank: number;
   username: string;
   fid: string;
   pfp_url: string | null;
   winnings: number;
   voteCount: number;
+  accuracy: number;
+  trend: "up" | "down" | "none";
   address: string;
 }
+
+type TimeFrame = "all" | "monthly" | "weekly";
+type LeaderboardType = "accuracy" | "volume";
 
 async function withRetry<T>(
   fn: () => Promise<T>,
@@ -96,26 +102,61 @@ async function batchFetchNeynarUsers(
   return result;
 }
 
-export async function GET() {
-  const cachedLeaderboard = cache.get<LeaderboardEntry[]>(CACHE_KEY);
+function getCacheKey(type: LeaderboardType, timeframe: TimeFrame) {
+  return `${CACHE_KEY_PREFIX}${type}_${timeframe}`;
+}
+
+function calculateAccuracy(wins: bigint, totalTrades: number): number {
+  if (totalTrades === 0) return 0;
+  // Convert BigInt to number for calculation
+  const winsNumber = Number(wins);
+  return Math.round((winsNumber / totalTrades) * 100);
+}
+
+function calculateTrend(
+  currentRank: number,
+  previousRank: number
+): "up" | "down" | "none" {
+  if (previousRank === 0) return "none";
+  if (currentRank < previousRank) return "up";
+  if (currentRank > previousRank) return "down";
+  return "none";
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const type: LeaderboardType =
+    (searchParams.get("type") as LeaderboardType) || "accuracy";
+  const timeframe: TimeFrame =
+    (searchParams.get("timeframe") as TimeFrame) || "all";
+
+  const cacheKey = getCacheKey(type, timeframe);
+  const cachedLeaderboard = cache.get<LeaderboardEntry[]>(cacheKey);
+
   if (cachedLeaderboard) {
     console.log("✅ Serving from cache");
-    const safeLeaderboard = JSON.parse(
-      JSON.stringify(cachedLeaderboard, (key, value) =>
-        typeof value === "bigint" ? Number(value) : value
-      )
-    );
-    return NextResponse.json(safeLeaderboard);
+    return NextResponse.json(cachedLeaderboard);
   }
 
   try {
     console.log("🚀 Starting leaderboard fetch...");
 
+    // Check for required environment variables
     const neynarApiKey = process.env.NEYNAR_API_KEY;
+    const alchemyRpcUrl = process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL;
+
     if (!neynarApiKey) {
       console.error("❌ NEYNAR_API_KEY is not set");
       return NextResponse.json(
         { error: "Server configuration error: Missing NEYNAR_API_KEY" },
+        { status: 500 }
+      );
+    }
+
+    if (!alchemyRpcUrl) {
+      console.error("❌ NEXT_PUBLIC_ALCHEMY_RPC_URL is not set");
+      return NextResponse.json(
+        { error: "Server configuration error: Missing RPC URL" },
         { status: 500 }
       );
     }
@@ -315,12 +356,27 @@ export async function GET() {
 
     const winners = Array.from(combinedEntries.values())
       .filter((entry) => entry.totalWinnings > 0n)
-      .map((entry) => ({
-        address: entry.user.toLowerCase(),
-        winnings: Number(entry.totalWinnings) / Math.pow(10, tokenDecimals),
-        voteCount: Number(entry.voteCount),
-      }))
-      .sort((a, b) => b.winnings - a.winnings);
+      .map((entry, index) => {
+        // Convert BigInt values to numbers before calculations
+        const normalizedWinnings =
+          Number(entry.totalWinnings) / Math.pow(10, tokenDecimals);
+        const voteCount = Number(entry.voteCount);
+        // Calculate accuracy using the number values
+        const accuracy = calculateAccuracy(entry.totalWinnings, voteCount);
+
+        return {
+          address: entry.user.toLowerCase(),
+          winnings: normalizedWinnings,
+          voteCount: voteCount,
+          accuracy: accuracy,
+          rank: index + 1,
+          trend: calculateTrend(index + 1, 0), // For proper trend implementation, you'd need to store previous ranks
+        };
+      })
+      .sort((a, b) =>
+        type === "accuracy" ? b.accuracy - a.accuracy : b.winnings - a.winnings
+      )
+      .slice(0, 100); // Get top 100 users
 
     console.log(`📊 Combined ${winners.length} total unique winners`);
 
@@ -349,25 +405,27 @@ export async function GET() {
 
     // ==================== BUILD FINAL LEADERBOARD ====================
     console.log("🧠 Building leaderboard...");
-    const leaderboard: LeaderboardEntry[] = winners
-      .slice(0, 10) // Top 10 only
-      .map((winner) => {
-        const usersForAddress = addressToUsersMap[winner.address];
-        const user =
-          usersForAddress && usersForAddress.length > 0
-            ? usersForAddress[0]
-            : undefined;
-        return {
-          username:
-            user?.username ||
-            `${winner.address.slice(0, 6)}...${winner.address.slice(-4)}`,
-          fid: user?.fid || "nil",
-          pfp_url: user?.pfp_url || null,
-          winnings: winner.winnings,
-          voteCount: winner.voteCount,
-          address: winner.address,
-        };
-      });
+    const leaderboard: LeaderboardEntry[] = winners.map((winner) => {
+      const usersForAddress = addressToUsersMap[winner.address];
+      const user =
+        usersForAddress && usersForAddress.length > 0
+          ? usersForAddress[0]
+          : undefined;
+
+      return {
+        rank: winner.rank,
+        username:
+          user?.username ||
+          `${winner.address.slice(0, 6)}...${winner.address.slice(-4)}`,
+        fid: user?.fid || "nil",
+        pfp_url: user?.pfp_url || null,
+        winnings: winner.winnings,
+        voteCount: winner.voteCount,
+        accuracy: winner.accuracy,
+        trend: winner.trend,
+        address: winner.address,
+      };
+    });
 
     console.log("🏆 Final Leaderboard:", leaderboard);
 
@@ -378,14 +436,14 @@ export async function GET() {
       )
     );
 
-    cache.set(CACHE_KEY, safeLeaderboard);
+    cache.set(cacheKey, safeLeaderboard);
     console.log("✅ Cached leaderboard");
 
     return NextResponse.json(safeLeaderboard);
   } catch (error) {
     console.error("❌ Leaderboard fetch error:", error);
 
-    const cachedLeaderboard = cache.get<LeaderboardEntry[]>(CACHE_KEY);
+    const cachedLeaderboard = cache.get<LeaderboardEntry[]>(cacheKey);
     if (cachedLeaderboard) {
       console.log("✅ Serving stale cache due to error");
       const safeLeaderboard = JSON.parse(
