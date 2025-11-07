@@ -30,14 +30,7 @@ import { useFarcasterUser } from "@/hooks/useFarcasterUser";
 import { Badge } from "./ui/badge";
 import { ModernAdminDashboard } from "./ModernAdminDashboard";
 
-type LeaderboardEntry = {
-  username: string;
-  fid: string;
-  pfp_url: string | null;
-  winnings: number | null;
-  address: string;
-  voteCount: number;
-};
+import { LeaderboardEntry } from "@/types/leaderboard";
 
 import LeaderboardComponent from "./LeaderboardComponent";
 
@@ -120,7 +113,20 @@ export function EnhancedPredictionMarketDashboard() {
       const data = await res.json();
 
       if (Array.isArray(data)) {
-        setLeaderboard(data as LeaderboardEntry[]);
+        const transformedData: LeaderboardEntry[] = data.map(
+          (entry, index) => ({
+            rank: index + 1,
+            username: entry.username || "",
+            fid: entry.fid,
+            pfp_url: entry.pfp_url,
+            winnings: entry.winnings || 0,
+            voteCount: entry.voteCount,
+            accuracy: entry.winnings ? Math.round(entry.winnings * 100) : 0,
+            trend: "none", // You can implement trend logic here if needed
+            address: entry.address,
+          })
+        );
+        setLeaderboard(transformedData);
       } else {
         throw new Error(
           "Received non-array data for leaderboard. Expected an array."
@@ -270,36 +276,10 @@ export function EnhancedPredictionMarketDashboard() {
           <TabsContent value="leaderboard" className="mt-6">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
               <LeaderboardComponent
+                onTabChange={handleTabChange}
+                leaderboard={leaderboard}
                 isLoading={isLoadingLeaderboard}
                 error={leaderboardError}
-                onTabChange={handleTabChange}
-                data={
-                  leaderboard.length > 0
-                    ? {
-                        users: leaderboard.map((entry) => ({
-                          rank: leaderboard.indexOf(entry) + 1,
-                          name: entry.username || `FID: ${entry.fid}`,
-                          accuracy: Math.round((entry.winnings || 0) * 100),
-                          avatar: entry.pfp_url || "",
-                          predictions: entry.voteCount,
-                          trend: undefined, // You can add trend logic here if needed
-                        })),
-                        currentUser: {
-                          rank:
-                            leaderboard.findIndex(
-                              (e) => e.fid === farcasterUser?.fid
-                            ) + 1,
-                          name: "Your Rank",
-                          accuracy: Math.round(
-                            (leaderboard.find(
-                              (e) => e.fid === farcasterUser?.fid
-                            )?.winnings || 0) * 100
-                          ),
-                          avatar: farcasterUser?.pfp_url || "",
-                        },
-                      }
-                    : undefined
-                }
               />
             </div>
           </TabsContent>

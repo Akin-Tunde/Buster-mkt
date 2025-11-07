@@ -26,48 +26,25 @@ const timeframeMap: Record<UITimeFrame, TimeFrame> = {
 
 interface LeaderboardProps {
   onTabChange?: (tab: string) => void;
+  leaderboard?: LeaderboardEntry[];
+  isLoading?: boolean;
+  error?: string | null;
 }
 
 export default function LeaderboardComponent({
   onTabChange,
+  leaderboard = [],
+  isLoading = false,
+  error = null,
 }: LeaderboardProps) {
   const [leaderboardType, setLeaderboardType] =
     useState<UILeaderboardType>("Accuracy");
   const [timeFrame, setTimeFrame] = useState<UITimeFrame>("All-Time");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<LeaderboardEntry[]>([]);
-
-  const fetchLeaderboard = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        type: typeMap[leaderboardType],
-        timeframe: timeframeMap[timeFrame],
-      });
-
-      const response = await fetch(`/api/leaderboard?${params}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch leaderboard data");
-      }
-
-      const leaderboardData = await response.json();
-      setData(leaderboardData);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "An error occurred while fetching the leaderboard"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const [data, setData] = useState<LeaderboardEntry[]>(leaderboard);
 
   useEffect(() => {
-    fetchLeaderboard();
-  }, [leaderboardType, timeFrame]);
+    setData(leaderboard);
+  }, [leaderboard]);
 
   // State management for filters
 
