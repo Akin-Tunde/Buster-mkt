@@ -46,15 +46,27 @@ export function ClaimWinningsSection() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("Auto-discovered markets:", data);
+        console.log("Auto-discovered markets response:", data);
 
-        const winnings = (data.winningsData || []).map((w: any) => ({
-          marketId: w.marketId,
-          amount: BigInt(w.amount || 0),
-          hasWinnings: w.hasWinnings,
-          hasClaimed: w.hasClaimed || false,
-        }));
+        // Ensure winningsData exists and is an array
+        if (!data.winningsData || !Array.isArray(data.winningsData)) {
+          console.error("Invalid winningsData format:", data.winningsData);
+          setWinningsData([]);
+          setUserMarkets([]);
+          return;
+        }
 
+        const winnings = data.winningsData.map((w: any) => {
+          console.log("Processing winning entry:", w);
+          return {
+            marketId: w.marketId,
+            amount: BigInt(w.amount || 0),
+            hasWinnings: w.hasWinnings ?? false,
+            hasClaimed: w.hasClaimed ?? false,
+          };
+        });
+
+        console.log("Processed winnings:", winnings);
         setWinningsData(winnings);
         setUserMarkets(data.participatedMarkets || []);
       } else {
