@@ -140,9 +140,9 @@ export function ClaimWinningsSection() {
   const totalClaimedEth = Number(totalClaimed) / 1e18;
 
   return (
-    <Card className="border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+    <Card className="border-purple-200 bg-gradient-to-br from-purple-50 to-[#924db3]/10">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-green-800">
+        <CardTitle className="flex items-center gap-2 text-[#924db3]">
           <Trophy className="w-5 h-5" />
           Claim Your Winnings
         </CardTitle>
@@ -150,7 +150,7 @@ export function ClaimWinningsSection() {
       <CardContent className="space-y-4">
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-green-600" />
+            <Loader2 className="w-6 h-6 animate-spin text-[#924db3]" />
             <span className="ml-2 text-sm text-gray-600">
               Checking available winnings...
             </span>
@@ -165,7 +165,7 @@ export function ClaimWinningsSection() {
           </div>
         ) : unclaimedWinnings.length === 0 && claimedWinnings.length > 0 ? (
           <div className="text-center py-8">
-            <Trophy className="w-12 h-12 mx-auto mb-4 text-green-600" />
+            <Trophy className="w-12 h-12 mx-auto mb-4 text-[#924db3]" />
             <p className="text-gray-900 font-semibold">All Winnings Claimed!</p>
             <p className="text-sm text-gray-600 mt-1">
               Total claimed: {totalClaimedEth.toFixed(4)} $Buster
@@ -207,19 +207,19 @@ export function ClaimWinningsSection() {
         ) : (
           <>
             {/* Total Winnings Summary */}
-            <div className="bg-green-100 p-4 rounded-lg">
+            <div className="bg-purple-100 p-4 rounded-lg">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-green-800">
+                  <p className="text-sm font-medium text-[#924db3]">
                     Total Available Winnings
                   </p>
-                  <p className="text-2xl font-bold text-green-900">
+                  <p className="text-2xl font-bold text-[#924db3]">
                     {totalWinningsEth.toFixed(4)} $Buster
                   </p>
                 </div>
                 <Badge
                   variant="secondary"
-                  className="bg-green-200 text-green-800"
+                  className="bg-purple-200 text-[#924db3]"
                 >
                   {unclaimedWinnings.length} Unclaimed Market
                   {unclaimedWinnings.length !== 1 ? "s" : ""}
@@ -247,7 +247,7 @@ export function ClaimWinningsSection() {
               {unclaimedWinnings.map((winnings) => (
                 <div
                   key={winnings.marketId}
-                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200"
+                  className="flex items-center justify-between p-3 bg-white rounded-lg border border-purple-200"
                 >
                   <div>
                     <p className="font-medium text-gray-900">
@@ -261,7 +261,7 @@ export function ClaimWinningsSection() {
                     onClick={() => handleClaimWinnings(winnings.marketId)}
                     disabled={isPending || isConfirming}
                     size="sm"
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-[#924db3] hover:bg-[#824099]"
                   >
                     {isPending || isConfirming ? (
                       <>
