@@ -1,9 +1,7 @@
 # Buster-mkt: Onchain Prediction Market Platform
 
 > Buster-mkt is a decentralized, open-source prediction market platform. Users can create, trade, and resolve markets onchain, powered by Next.js, viem, wagmi, and Satori. The platform features advanced analytics, Farcaster mini-app integration, and a focus on transparency and security.
-
 ---
-
 ## Table of Contents
 
 - [Introduction](#introduction)
