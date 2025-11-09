@@ -624,7 +624,7 @@ export function UserStats() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <p className="text-xs font-medium text-blue-600 mb-0.5">
-                    Binary Markets
+                    V1 Markets
                   </p>
                   <p className="text-2xl font-bold text-gray-900">
                     {stats.v1Markets}
