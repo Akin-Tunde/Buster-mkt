@@ -15,13 +15,7 @@ import { ValidatedMarketList } from "./ValidatedMarketList";
 import { useUserRoles } from "@/hooks/useUserRoles";
 // import { MarketValidationBanner } from "./ValidationNotice";//
 import {
-  BarChart3,
-  TrendingUp,
-  ArrowRight,
-  User as UserIcon,
   Wallet,
-  Activity,
-  PieChart,
 } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
