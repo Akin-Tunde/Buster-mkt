@@ -195,8 +195,8 @@ export function EnhancedPredictionMarketDashboard() {
           d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
         />
       </svg>
-      <p className="mt-2 text-sm font-medium text-gray-500">{title}</p>
-      <p className="mt-1 text-xs text-gray-400">{subtitle}</p>
+      <p className="mt-2 text-sm font-medium text-gray-400">{title}</p>
+      <p className="mt-1 text-xs text-gray-500">{subtitle}</p>
     </div>
   );
 
@@ -204,7 +204,7 @@ export function EnhancedPredictionMarketDashboard() {
   const actualShowVoteHistory = isClient && !!address;
 
   return (
-    <div className="min-h-screen flex flex-col pb-20 md:pb-0 bg-gradient-to-br from-[#6A5ACD] via-[#E6E6FA] to-[#F0F8FF] dark:from-[#2D1B69] dark:via-[#1a1a2e] dark:to-[#16213e]">
+    <div className="min-h-screen flex flex-col pb-20 md:pb-0 bg-[#352c3f]">
       <Navbar />
       <div className="flex-grow container mx-auto p-4">
         <Tabs
@@ -215,27 +215,45 @@ export function EnhancedPredictionMarketDashboard() {
           <TabsList
             className={`grid w-full ${
               actualShowVoteHistory ? "grid-cols-5" : "grid-cols-4"
-            } overflow-x-auto whitespace-nowrap hidden md:grid`}
+            } overflow-x-auto whitespace-nowrap hidden md:grid bg-[#433952]/50 border border-[#544863]`}
           >
-            <TabsTrigger value="active" className="text-xs px-2">
+            <TabsTrigger 
+              value="active" 
+              className="text-xs px-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+            >
               Active
             </TabsTrigger>
-            <TabsTrigger value="ended" className="text-xs px-2">
+            <TabsTrigger 
+              value="ended" 
+              className="text-xs px-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+            >
               Ended
             </TabsTrigger>
-            <TabsTrigger value="leaderboard" className="text-xs px-2">
+            <TabsTrigger 
+              value="leaderboard" 
+              className="text-xs px-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+            >
               Leaderboard
             </TabsTrigger>
-            <TabsTrigger value="profile" className="text-xs px-2">
+            <TabsTrigger 
+              value="profile" 
+              className="text-xs px-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+            >
               Profile
             </TabsTrigger>
             {actualShowVoteHistory && (
-              <TabsTrigger value="myvotes" className="text-xs px-2">
+              <TabsTrigger 
+                value="myvotes" 
+                className="text-xs px-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+              >
                 My Shares
               </TabsTrigger>
             )}
             {(hasCreatorAccess || hasResolverAccess || isAdmin) && (
-              <TabsTrigger value="admin" className="text-xs px-2">
+              <TabsTrigger 
+                value="admin" 
+                className="text-xs px-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+              >
                 Admin
               </TabsTrigger>
             )}
@@ -250,11 +268,17 @@ export function EnhancedPredictionMarketDashboard() {
 
           <TabsContent value="ended" className="mt-6">
             <Tabs defaultValue="pending" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="pending" className="text-xs px-2">
+              <TabsList className="grid w-full grid-cols-2 bg-[#433952]/50 border border-[#544863]">
+                <TabsTrigger 
+                  value="pending" 
+                  className="text-xs px-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+                >
                   Pending
                 </TabsTrigger>
-                <TabsTrigger value="resolved" className="text-xs px-2">
+                <TabsTrigger 
+                  value="resolved" 
+                  className="text-xs px-2 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+                >
                   Results
                 </TabsTrigger>
               </TabsList>
@@ -274,7 +298,7 @@ export function EnhancedPredictionMarketDashboard() {
           </TabsContent>
 
           <TabsContent value="leaderboard" className="mt-6">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-[#433952]/50 backdrop-blur-sm rounded-lg shadow-lg overflow-hidden border border-[#544863]">
               <LeaderboardComponent
                 onTabChange={handleTabChange}
                 leaderboard={leaderboard}
@@ -298,16 +322,16 @@ export function EnhancedPredictionMarketDashboard() {
                 </div>
               </div>
             ) : (
-              <Card>
+              <Card className="bg-[#433952]/50 backdrop-blur-sm border-[#544863]">
                 <CardContent className="p-12 text-center">
                   <div className="flex flex-col items-center gap-4">
-                    <div className="p-4 bg-purple-100 dark:bg-purple-900 rounded-full">
-                      <Wallet className="h-12 w-12 text-purple-600 dark:text-purple-300" />
+                    <div className="p-4 bg-purple-600/20 rounded-full">
+                      <Wallet className="h-12 w-12 text-purple-400" />
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    <h3 className="text-xl font-semibold text-gray-100">
                       Connect Your Wallet
                     </h3>
-                    <p className="text-gray-600 dark:text-gray-400 max-w-md">
+                    <p className="text-gray-300 max-w-md">
                       Connect your wallet to view your profile, track your
                       predictions, and see your performance statistics.
                     </p>

@@ -8,25 +8,25 @@ body {
 
 @layer base {
   :root {
-    /* Clean glass grey theme */
-    --background: 220 15% 96%;
-    --background-secondary: 220 15% 98%;
-    --foreground: 220 15% 12%;
+    /* Deep purple theme */
+    --background: 282 18% 21%;
+    --background-secondary: 282 18% 24%;
+    --foreground: 0 0% 98%;
     
-    --card: 0 0% 100%;
-    --card-foreground: 220 15% 12%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 15% 12%;
+    --card: 282 18% 23%;
+    --card-foreground: 0 0% 98%;
+    --popover: 282 18% 23%;
+    --popover-foreground: 0 0% 98%;
     
     /* Purple/blue accents */
     --primary: 262 83% 58%;
     --primary-foreground: 0 0% 100%;
     
-    --secondary: 220 15% 92%;
-    --secondary-foreground: 220 15% 12%;
+    --secondary: 282 18% 28%;
+    --secondary-foreground: 0 0% 98%;
     
-    --muted: 220 15% 94%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 282 18% 26%;
+    --muted-foreground: 282 10% 70%;
     
     --accent: 217 91% 60%;
     --accent-foreground: 0 0% 100%;
@@ -34,8 +34,8 @@ body {
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
     
-    --border: 220 15% 88%;
-    --input: 220 15% 88%;
+    --border: 282 18% 32%;
+    --input: 282 18% 32%;
     --ring: 262 83% 58%;
     
     --chart-1: 262 83% 58%;
