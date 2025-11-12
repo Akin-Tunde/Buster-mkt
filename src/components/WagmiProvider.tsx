@@ -1,68 +1,20 @@
 "use client";
 
-import { cookieStorage, createStorage } from "@wagmi/core";
+import { createConfig, http, WagmiProvider } from "wagmi";
 import { base } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
+import { coinbaseWallet, metaMask, walletConnect } from "wagmi/connectors";
+// import { APP_NAME, APP_ICON_URL, APP_URL } from "@lib/constants";
 import { useEffect, useState, createContext, useContext } from "react";
 import { useConnect, useAccount, useDisconnect } from "wagmi";
 import React from "react";
-import { createAppKit, useAppKit } from "@reown/appkit/react";
-import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-import { WagmiProvider } from "wagmi";
-import { farcasterMiniApp as miniAppConnector } from "@farcaster/miniapp-wagmi-connector";
-import { coinbaseWallet } from "wagmi/connectors";
 
-// Get projectId from https://dashboard.reown.com
-export const projectId =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
-  "b56e18d47c72ab683b10814fe9495694";
+// Constants
 
-if (!projectId) {
-  throw new Error("Project ID is not defined");
-}
-
-export const networks = [base];
-
-// Set up the Wagmi Adapter (Config) with additional connectors for Farcaster
-export const wagmiAdapter = new WagmiAdapter({
-  storage: createStorage({
-    storage: cookieStorage,
-  }),
-  ssr: true,
-  projectId,
-  networks,
-  connectors: [
-    // Add Farcaster miniapp connector
-    miniAppConnector(),
-    // Coinbase Wallet is included by default in AppKit
-  ],
-});
-
-export const config = wagmiAdapter.wagmiConfig;
-
-// Set up metadata
-const metadata = {
-  name: "Policast",
-  description: "Policast - Social podcasting on Farcaster",
-  url: "https://buster-mkt.vercel.app", // origin must match your domain & subdomain
-  icons: ["https://buster-mkt.vercel.app/icon.png"],
-};
-
-// Create the modal
-const modal = createAppKit({
-  adapters: [wagmiAdapter],
-  projectId,
-  networks: [base],
-  defaultNetwork: base,
-  metadata: metadata,
-  features: {
-    analytics: true, // Optional - defaults to your Cloud configuration
-    email: true,
-    socials: ["farcaster"],
-    emailShowWallets: true,
-  },
-  allWallets: "SHOW",
-});
+const APP_NAME: string = "Policast";
+const APP_URL: string = process.env.NEXT_PUBLIC_URL!;
+const APP_ICON_URL: string = `${APP_URL}/icon.png`;
 
 // Wallet context and types
 interface WalletContextType {
@@ -73,7 +25,6 @@ interface WalletContextType {
   address: string | undefined;
   connectors: readonly any[];
   primaryConnector: any;
-  openModal: () => void;
 }
 
 const WalletContext = createContext<WalletContextType | null>(null);
@@ -82,7 +33,7 @@ const WalletContext = createContext<WalletContextType | null>(null);
 export function useWallet(): WalletContextType {
   const context = useContext(WalletContext);
   if (!context) {
-    throw new Error("useWallet must be used within WagmiProvider");
+    throw new Error("useWallet must be used within WalmiProvider");
   }
   return context;
 }
@@ -94,21 +45,13 @@ function useCoinbaseWalletAutoConnect() {
   const { isConnected } = useAccount();
 
   useEffect(() => {
-    // Only run in browser environment
-    if (typeof window === "undefined") return;
-
+    // Check if we're running in Coinbase Wallet
     const checkCoinbaseWallet = () => {
-      try {
-        const ethereum = (window as any).ethereum;
-        const isInCoinbaseWallet =
-          ethereum?.isCoinbaseWallet ||
-          ethereum?.isCoinbaseWalletExtension ||
-          ethereum?.isCoinbaseWalletBrowser;
-        setIsCoinbaseWallet(!!isInCoinbaseWallet);
-      } catch (error) {
-        console.warn("Error checking Coinbase Wallet:", error);
-        setIsCoinbaseWallet(false);
-      }
+      const isInCoinbaseWallet =
+        window.ethereum?.isCoinbaseWallet ||
+        window.ethereum?.isCoinbaseWalletExtension ||
+        window.ethereum?.isCoinbaseWalletBrowser;
+      setIsCoinbaseWallet(!!isInCoinbaseWallet);
     };
 
     checkCoinbaseWallet();
@@ -121,31 +64,46 @@ function useCoinbaseWalletAutoConnect() {
 
   useEffect(() => {
     // Auto-connect if in Coinbase Wallet and not already connected
-    if (isCoinbaseWallet && !isConnected && connectors.length > 1) {
-      try {
-        const coinbaseConnector = connectors.find((c) =>
-          c.id.includes("coinbase")
-        );
-        if (coinbaseConnector) {
-          connect({ connector: coinbaseConnector });
-        }
-      } catch (error) {
-        console.warn("Auto-connect failed:", error);
-      }
+    if (isCoinbaseWallet && !isConnected) {
+      connect({ connector: connectors[1] }); // Coinbase Wallet connector
     }
   }, [isCoinbaseWallet, isConnected, connect, connectors]);
 
   return isCoinbaseWallet;
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 3,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    },
+export const config = createConfig({
+  chains: [base],
+  transports: {
+    [base.id]: http(process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL),
   },
+  connectors: [
+    miniAppConnector(),
+    coinbaseWallet({
+      appName: APP_NAME,
+      appLogoUrl: APP_ICON_URL,
+      preference: "all",
+    }),
+    metaMask({
+      dappMetadata: {
+        name: APP_NAME,
+        // url: window.ethereum,
+      },
+    }),
+    walletConnect({
+      projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
+      showQrModal: true,
+      metadata: {
+        name: APP_NAME,
+        description: "Policast - Social podcasting on Farcaster",
+        url: APP_URL,
+        icons: [APP_ICON_URL],
+      },
+    }),
+  ],
 });
+
+const queryClient = new QueryClient();
 
 // Wrapper component that provides Coinbase Wallet auto-connection and wallet context
 function WalletProvider({ children }: { children: React.ReactNode }) {
@@ -156,9 +114,6 @@ function WalletProvider({ children }: { children: React.ReactNode }) {
     isConnected: wagmiIsConnected,
     isConnecting: wagmiIsConnecting,
   } = useAccount();
-
-  // Get AppKit instance for modal control
-  const { open } = useAppKit();
 
   // Auto-connect logic
   useCoinbaseWalletAutoConnect();
@@ -176,37 +131,21 @@ function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const walletValue: WalletContextType = {
     connect: (connectorId?: string) => {
-      try {
-        if (connectorId) {
-          const connector = wagmiConnectors.find((c) => c.id === connectorId);
-          if (connector) {
-            wagmiConnect({ connector });
-          } else {
-            console.warn(`Connector with id "${connectorId}" not found`);
-          }
-        } else if (primaryConnector) {
-          wagmiConnect({ connector: primaryConnector });
-        } else {
-          // Use AppKit modal as fallback
-          open();
+      if (connectorId) {
+        const connector = wagmiConnectors.find((c) => c.id === connectorId);
+        if (connector) {
+          wagmiConnect({ connector });
         }
-      } catch (error) {
-        console.error("Failed to connect wallet:", error);
+      } else if (primaryConnector) {
+        wagmiConnect({ connector: primaryConnector });
       }
     },
-    disconnect: () => {
-      try {
-        wagmiDisconnect();
-      } catch (error) {
-        console.error("Failed to disconnect wallet:", error);
-      }
-    },
+    disconnect: wagmiDisconnect,
     isConnected: wagmiIsConnected,
     isConnecting: wagmiIsConnecting,
     address,
     connectors: wagmiConnectors,
     primaryConnector,
-    openModal: () => open(),
   };
 
   return (

@@ -1,5 +1,5 @@
 {
-  "name": "politics",
+  "name": "policast",
   "version": "0.1.0",
   "overrides": {
     "chalk": "5.3.0",
