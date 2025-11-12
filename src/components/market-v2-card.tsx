@@ -15,16 +15,14 @@ import { useAccount, useReadContract } from "wagmi";
 import {
   V2contractAddress,
   V2contractAbi,
-  publicClient,
   PolicastViews,
   PolicastViewsAbi,
 } from "@/constants/contract";
 import { TrendingUp, TrendingDown, MessageCircle, Gift } from "lucide-react";
-import { MultiOptionProgress } from "./multi-option-progress";
 import MarketTime from "./market-time";
 import { MarketResolved } from "./market-resolved";
 import { MarketPending } from "./market-pending";
-import { MarketV2BuyInterface } from "./market-v2-buy-interface";
+import { InteractiveTradingInterface } from "./InteractiveTradingInterface";
 import { MarketV2SellInterface } from "./MarketV2SellInterface";
 import { MarketV2SharesDisplay } from "./market-v2-shares-display";
 import { sdk } from "@farcaster/miniapp-sdk";
@@ -36,6 +34,13 @@ import {
 import { MarketV2, MarketOption, MarketCategory } from "@/types/types";
 import { FreeMarketClaimStatus } from "./FreeMarketClaimStatus";
 import { FreeTokenClaimButton } from "./FreeTokenClaimButton";
+
+// Simple in-memory cache for comment counts (shared across all instances)
+const commentCountCache = new Map<
+  string,
+  { count: number; timestamp: number }
+>();
+const COMMENT_CACHE_TTL = 60000; // 1 minute cache
 
 // Add LinkifiedText component for URL preview support//
 const LinkifiedText = ({ text }: { text: string }) => {
@@ -208,37 +213,27 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     });
   })();
 
-  // Fetch full market info (legacy multi-field tuple)
-  const { data: marketInfo } = useReadContract({
-    address: PolicastViews,
-    abi: PolicastViewsAbi,
-    functionName: "getMarketInfo",
-    args: [BigInt(index)],
-  });
-
-  // Fetch explicit market type (more reliable than positional index)
+  // Use marketType from prop if available, otherwise fetch from contract
   const { data: marketTypeData } = useReadContract({
     address: PolicastViews,
     abi: PolicastViewsAbi,
     functionName: "getMarketType",
     args: [BigInt(index)],
+    query: {
+      enabled: typeof market.marketType === "undefined", // Only fetch if not in props
+    },
   });
 
-  // Normalized marketType (0 = paid, 1 = free) with fallback to positional index if explicit read missing
+  // Normalized marketType (0 = paid, 1 = free)
   const derivedMarketType: number | undefined = (() => {
+    // First check if it's in the market prop
+    if (typeof market.marketType === "number") return market.marketType;
+
+    // Then check contract data
     if (typeof marketTypeData === "number") return marketTypeData;
     if (marketTypeData && typeof marketTypeData === "bigint")
       return Number(marketTypeData);
-    if (
-      marketInfo &&
-      Array.isArray(marketInfo) &&
-      marketInfo.length > 7 &&
-      typeof marketInfo[7] === "number" &&
-      (marketInfo[7] === 0 || marketInfo[7] === 1)
-    ) {
-      // Legacy fallback path
-      return marketInfo[7] as number;
-    }
+
     return undefined;
   })();
 
@@ -254,6 +249,11 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     }
   }, [derivedMarketType, index]);
 
+  // Determine if we should fetch user shares (only for active, non-expired, non-invalidated markets)
+  const marketIsExpired = new Date(Number(market.endTime) * 1000) < new Date();
+  const shouldFetchShares =
+    !!address && !market.resolved && !market.invalidated && !marketIsExpired;
+
   // Fetch user shares for this market using getMarketOptionUserShares for each option
   // This matches the approach used in MarketV2PositionManager
   const userShares0Query = useReadContract({
@@ -262,8 +262,9 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     functionName: "getMarketOptionUserShares",
     args: [BigInt(index), 0n, address as `0x${string}`],
     query: {
-      enabled: !!address && (market.options?.length ?? 0) > 0,
-      refetchInterval: 10000,
+      enabled: shouldFetchShares && (market.options?.length ?? 0) > 0,
+      refetchInterval: 30000, // Reduced from 10s to 30s
+      staleTime: 15000, // Cache for 15s
     },
   });
 
@@ -273,8 +274,9 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     functionName: "getMarketOptionUserShares",
     args: [BigInt(index), 1n, address as `0x${string}`],
     query: {
-      enabled: !!address && (market.options?.length ?? 0) > 1,
-      refetchInterval: 10000,
+      enabled: shouldFetchShares && (market.options?.length ?? 0) > 1,
+      refetchInterval: 30000,
+      staleTime: 15000,
     },
   });
 
@@ -284,8 +286,9 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     functionName: "getMarketOptionUserShares",
     args: [BigInt(index), 2n, address as `0x${string}`],
     query: {
-      enabled: !!address && (market.options?.length ?? 0) > 2,
-      refetchInterval: 10000,
+      enabled: shouldFetchShares && (market.options?.length ?? 0) > 2,
+      refetchInterval: 30000,
+      staleTime: 15000,
     },
   });
 
@@ -295,8 +298,9 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     functionName: "getMarketOptionUserShares",
     args: [BigInt(index), 3n, address as `0x${string}`],
     query: {
-      enabled: !!address && (market.options?.length ?? 0) > 3,
-      refetchInterval: 10000,
+      enabled: shouldFetchShares && (market.options?.length ?? 0) > 3,
+      refetchInterval: 30000,
+      staleTime: 15000,
     },
   });
 
@@ -306,8 +310,9 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     functionName: "getMarketOptionUserShares",
     args: [BigInt(index), 4n, address as `0x${string}`],
     query: {
-      enabled: !!address && (market.options?.length ?? 0) > 4,
-      refetchInterval: 10000,
+      enabled: shouldFetchShares && (market.options?.length ?? 0) > 4,
+      refetchInterval: 30000,
+      staleTime: 15000,
     },
   });
 
@@ -325,36 +330,55 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
     query?.data ? (query.data as bigint) : 0n
   );
 
-  // Debug user shares
+  // Debug user shares (only in development)
   useEffect(() => {
-    console.log(
-      `[MarketV2Card ${index}] User shares array:`,
-      userShares.map((s, idx) => ({
-        optionId: idx,
-        shares: s.toString(),
-        hasShares: s > 0n,
-      })),
-      `| address: ${address}`
-    );
-  }, [userShares, index, address]);
+    if (process.env.NODE_ENV === "development" && shouldFetchShares) {
+      console.log(
+        `[MarketV2Card ${index}] User shares array:`,
+        userShares.map((s, idx) => ({
+          optionId: idx,
+          shares: s.toString(),
+          hasShares: s > 0n,
+        })),
+        `| address: ${address}`
+      );
+    }
+  }, [userShares, index, address, shouldFetchShares]);
 
-  // Fetch options data: static from API (with cache-busting), real-time price from contract
+  // Fetch options data: Use market.options prop data primarily, only fetch prices if needed
   useEffect(() => {
     let mounted = true;
 
     const fetchOptions = async () => {
       try {
-        // Determine option count immediately from prop, fallback to on-chain marketInfo
+        // Use options passed from parent (already contains all data from migration)
+        if (market.options && market.options.length > 0) {
+          const optionsData = market.options.map((opt, i) => ({
+            name: typeof opt === "string" ? opt : opt.name || `Option ${i + 1}`,
+            description: typeof opt === "string" ? "" : opt.description || "",
+            totalShares: typeof opt === "string" ? 0n : opt.totalShares || 0n,
+            totalVolume: typeof opt === "string" ? 0n : opt.totalVolume || 0n,
+            currentPrice: typeof opt === "string" ? 0n : opt.currentPrice || 0n,
+            isActive: typeof opt === "string" ? true : opt.isActive ?? true,
+          }));
+
+          const totalVol = optionsData.reduce(
+            (sum, opt) => sum + opt.totalVolume,
+            0n
+          );
+
+          if (mounted) {
+            setOptions(optionsData);
+            setTotalVolume(totalVol);
+          }
+          return;
+        }
+
+        // Fallback: only if market.options is not available
         const propCount = Number(market?.optionCount ?? 0) || 0;
-        const infoCount =
-          marketInfo && Array.isArray(marketInfo) && marketInfo.length > 4
-            ? Number(marketInfo[4])
-            : 0;
-        const optionCount =
-          propCount || infoCount || (market.options?.length ?? 0);
+        const optionCount = propCount;
 
         if (optionCount <= 0) {
-          // clear state if there are no options
           if (mounted) {
             setOptions([]);
             setTotalVolume(0n);
@@ -362,82 +386,66 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
           return;
         }
 
+        // Only fetch from API if we don't have data from parent
         const optionsData: MarketOption[] = [];
         let totalVol = 0n;
 
-        for (let i = 0; i < optionCount; i++) {
-          try {
-            // Static metadata from local API (cache-busted)
-            const apiRes = await fetch(
-              `/api/market-option?marketId=${index}&optionId=${i}&t=${Date.now()}`
-            );
-            const apiJson = apiRes.ok ? await apiRes.json() : null;
-
-            // Real-time price from contract (calculateCurrentPrice). Fallback to apiJson.currentPrice.
-            let realTimePrice = 0n;
+        // Fetch all options in parallel from API only
+        const fetchPromises = Array.from({ length: optionCount }).map(
+          async (_, i) => {
             try {
-              const priceData = await (publicClient.readContract as any)({
-                address: PolicastViews,
-                abi: PolicastViewsAbi,
-                functionName: "calculateCurrentPrice",
-                args: [BigInt(index), BigInt(i)],
-              });
-              if (priceData !== undefined && priceData !== null) {
-                realTimePrice =
-                  typeof priceData === "bigint"
-                    ? priceData
-                    : BigInt(priceData.toString());
-              }
-            } catch (priceErr) {
-              // contract read may fail; fallback to API value if available
-              if (apiJson && apiJson.currentPrice) {
-                try {
-                  realTimePrice = BigInt(apiJson.currentPrice);
-                } catch {}
-              }
-              console.debug(
-                `calculateCurrentPrice fallback for market ${index} option ${i}`,
-                priceErr
+              const apiRes = await fetch(
+                `/api/market-option?marketId=${index}&optionId=${i}`
               );
+              const apiJson = apiRes.ok ? await apiRes.json() : null;
+
+              if (!apiJson) {
+                return {
+                  name: `Option ${i + 1}`,
+                  description: "",
+                  totalShares: 0n,
+                  totalVolume: 0n,
+                  currentPrice: 0n,
+                  isActive: true,
+                };
+              }
+
+              return {
+                name: apiJson.name ?? `Option ${i + 1}`,
+                description: apiJson.description ?? "",
+                totalShares: apiJson.totalShares
+                  ? BigInt(apiJson.totalShares)
+                  : 0n,
+                totalVolume: apiJson.totalVolume
+                  ? BigInt(apiJson.totalVolume)
+                  : 0n,
+                currentPrice: apiJson.currentPrice
+                  ? BigInt(apiJson.currentPrice)
+                  : 0n,
+                isActive: apiJson.isActive ?? true,
+              };
+            } catch (innerErr) {
+              console.error(
+                `Error loading option ${i} for market ${index}`,
+                innerErr
+              );
+              return {
+                name: `Option ${i + 1}`,
+                description: "",
+                totalShares: 0n,
+                totalVolume: 0n,
+                currentPrice: 0n,
+                isActive: false,
+              };
             }
-
-            // Build option record using API metadata when present, otherwise safe defaults.
-            const optName = apiJson?.name ?? `Option ${i + 1}`;
-            const optDescription = apiJson?.description ?? "";
-            const optTotalShares = apiJson?.totalShares
-              ? BigInt(apiJson.totalShares)
-              : 0n;
-            const optTotalVolume = apiJson?.totalVolume
-              ? BigInt(apiJson.totalVolume)
-              : 0n;
-            const isActive = apiJson?.isActive ?? true;
-
-            optionsData.push({
-              name: optName,
-              description: optDescription,
-              totalShares: optTotalShares,
-              totalVolume: optTotalVolume,
-              currentPrice: realTimePrice,
-              isActive,
-            });
-
-            totalVol += optTotalVolume;
-          } catch (innerErr) {
-            // keep loop resilient; push a safe fallback entry so UI can render
-            console.error(
-              `Error loading option ${i} for market ${index}`,
-              innerErr
-            );
-            optionsData.push({
-              name: `Option ${i + 1}`,
-              description: "",
-              totalShares: 0n,
-              totalVolume: 0n,
-              currentPrice: 0n,
-              isActive: false,
-            });
           }
-        }
+        );
+
+        const results = await Promise.all(fetchPromises);
+        results.forEach((opt) => {
+          optionsData.push(opt);
+          totalVol += opt.totalVolume;
+        });
 
         if (mounted) {
           setOptions(optionsData);
@@ -472,23 +480,36 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
       mounted = false;
       window.removeEventListener("market-updated", handler);
     };
-  }, [index, market, marketInfo]); // re-run when market prop or on-chain marketInfo changes
+  }, [index, market]); // re-run when market prop changes
 
   // Calculate probabilities from prices (pass to MultiOptionProgress)
   const probabilities = displayOptions.map((option) =>
     Math.max(0, Math.min(100, (Number(option.currentPrice) / 1e18) * 100))
   );
 
-  // Fetch comment count
+  // Fetch comment count with caching
   useEffect(() => {
     const fetchCommentCount = async () => {
       try {
+        const cacheKey = `v2-${index}`;
+        const cached = commentCountCache.get(cacheKey);
+
+        // Use cache if valid
+        if (cached && Date.now() - cached.timestamp < COMMENT_CACHE_TTL) {
+          setCommentCount(cached.count);
+          return;
+        }
+
         const response = await fetch(
           `/api/comments?marketId=${index}&version=v2`
         );
         if (response.ok) {
           const data = await response.json();
-          setCommentCount(data.total || 0);
+          const count = data.total || 0;
+          setCommentCount(count);
+
+          // Update cache
+          commentCountCache.set(cacheKey, { count, timestamp: Date.now() });
         }
       } catch (error) {
         console.error("Error fetching comment count:", error);
@@ -681,15 +702,6 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
               />
             </div>
           )}
-        {displayOptions.length > 0 && (
-          <MultiOptionProgress
-            marketId={index}
-            options={displayOptions}
-            probabilities={probabilities} // New prop
-            totalVolume={totalVolume}
-            className="mb-4"
-          />
-        )}
 
         {isExpired ? (
           isResolved ? (
@@ -736,7 +748,24 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
 
             {/* Conditional Interface */}
             {activeInterface === "buy" ? (
-              <MarketV2BuyInterface marketId={index} market={market} />
+              <InteractiveTradingInterface
+                marketId={index}
+                market={market}
+                options={displayOptions}
+                probabilities={probabilities}
+                totalVolume={totalVolume}
+                userShares={userShares}
+                onTradeComplete={() => {
+                  // Trigger event to refresh market data
+                  window.dispatchEvent(
+                    new CustomEvent("market-updated", {
+                      detail: { marketId: index },
+                    })
+                  );
+                  // Refetch user shares
+                  userSharesQueries.forEach((query) => query.refetch?.());
+                }}
+              />
             ) : (
               <MarketV2SellInterface
                 marketId={index}
@@ -756,7 +785,7 @@ export function MarketV2Card({ index, market }: MarketV2CardProps) {
             )}
 
             {/* Dedicated Position Card */}
-            {hasShares && (
+            {hasShares && activeInterface === "sell" && (
               <div className="mt-4 p-3 bg-[#352c3f]/80 backdrop-blur-sm rounded-lg border border-[#544863]">
                 <MarketV2SharesDisplay
                   market={market}

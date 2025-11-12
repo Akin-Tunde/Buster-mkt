@@ -145,7 +145,7 @@ export function Navbar() {
               </button>
 
               {showWalletOptions && (
-                <div className="absolute top-full right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 min-w-[160px] overflow-hidden">
+                <div className="absolute top-full right-0 mt-2 bg-[#352c3f]/95 backdrop-blur-xl border border-[#544863] rounded-xl shadow-xl z-[100] min-w-[160px] overflow-hidden">
                   {availableConnectors.map((connector) => (
                     <button
                       key={connector.id}
@@ -157,7 +157,7 @@ export function Navbar() {
                           console.error("Error connecting to wallet:", error);
                         }
                       }}
-                      className="w-full px-4 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 text-xs font-medium"
+                      className="w-full px-4 py-2.5 text-left text-gray-200 hover:bg-[#433952]/80 transition-colors duration-200 text-xs font-medium"
                     >
                       {getConnectorName(connector.id)}
                     </button>
@@ -169,7 +169,7 @@ export function Navbar() {
 
           {showWalletOptions && (
             <div
-              className="fixed inset-0 z-40"
+              className="fixed inset-0 z-[90]"
               onClick={() => setShowWalletOptions(false)}
             />
           )}
@@ -181,7 +181,7 @@ export function Navbar() {
   return (
     <>
       {/* Desktop View - Sleek & Compact */}
-      <div className="hidden md:flex justify-between items-center mb-4 px-4 py-2.5 bg-white/80 backdrop-blur-xl border border-gray-200/60 rounded-xl shadow-lg">
+      <div className="hidden md:flex justify-between items-center mb-4 px-4 py-2.5 bg-[#433952]/50 backdrop-blur-xl border border-[#544863] rounded-xl shadow-lg">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2.5">
             {pfpUrl && !pfpError ? (
@@ -190,7 +190,7 @@ export function Navbar() {
                 alt="Profile Picture"
                 width={32}
                 height={32}
-                className="rounded-full ring-2 ring-purple-100"
+                className="rounded-full ring-2 ring-[#544863]"
                 onError={() => setPfpError(true)}
               />
             ) : (
@@ -198,7 +198,7 @@ export function Navbar() {
                 {username?.charAt(0)?.toUpperCase() || "P"}
               </div>
             )}
-            <div className="text-lg font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            <div className="text-lg font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
               POLICAST
             </div>
           </div>
@@ -213,7 +213,7 @@ export function Navbar() {
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
                       isActive
                         ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md"
-                        : "text-gray-600 hover:bg-gray-100"
+                        : "text-gray-300 hover:bg-[#352c3f]/80"
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -233,7 +233,7 @@ export function Navbar() {
 
       {/* Mobile View - Ultra Compact */}
       <div className="md:hidden">
-        <div className="flex justify-between items-center mb-3 px-3 py-2 bg-white/80 backdrop-blur-xl border border-gray-200/60 rounded-xl shadow-lg">
+        <div className="flex justify-between items-center mb-3 px-3 py-2 bg-[#433952]/50 backdrop-blur-xl border border-[#544863] rounded-xl shadow-lg">
           <div className="flex items-center gap-2">
             {pfpUrl && !pfpError ? (
               <Image
@@ -241,7 +241,7 @@ export function Navbar() {
                 alt="Profile Picture"
                 width={28}
                 height={28}
-                className="rounded-full ring-2 ring-purple-100"
+                className="rounded-full ring-2 ring-[#544863]"
                 onError={() => setPfpError(true)}
               />
             ) : (
@@ -249,7 +249,7 @@ export function Navbar() {
                 {username?.charAt(0)?.toUpperCase() || "P"}
               </div>
             )}
-            <div className="text-sm font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            <div className="text-sm font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
               POLICAST
             </div>
           </div>
@@ -257,12 +257,12 @@ export function Navbar() {
             <ThemeToggle />
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-[#352c3f]/80 transition-colors"
             >
               {mobileMenuOpen ? (
-                <X className="h-4 w-4 text-gray-600" />
+                <X className="h-4 w-4 text-gray-300" />
               ) : (
-                <Menu className="h-4 w-4 text-gray-600" />
+                <Menu className="h-4 w-4 text-gray-300" />
               )}
             </button>
             <WalletButton />
@@ -271,7 +271,7 @@ export function Navbar() {
 
         {/* Mobile Menu - Sleek Dropdown */}
         {mobileMenuOpen && (
-          <div className="mb-3 p-2 bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-gray-200/60">
+          <div className="mb-3 p-2 bg-[#433952]/50 backdrop-blur-xl rounded-xl shadow-lg border border-[#544863]">
             <nav className="flex flex-col gap-1">
               {allNavigationItems.map((item) => {
                 const Icon = item.icon;
@@ -286,7 +286,7 @@ export function Navbar() {
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
                         isActive
                           ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-md"
-                          : "text-gray-600 hover:bg-gray-100"
+                          : "text-gray-300 hover:bg-[#352c3f]/80"
                       }`}
                     >
                       <Icon className="h-4 w-4" />
