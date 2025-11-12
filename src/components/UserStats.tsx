@@ -572,13 +572,13 @@ export function UserStats() {
   return (
     <div className="space-y-3">
       {/* Compact Profile Header */}
-      <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 text-white overflow-hidden relative">
+      <Card className="border-0 shadow-lg bg-gradient-to-br from-[#433952] via-[#352c3f] to-[#544863] text-white overflow-hidden relative">
         <div className="absolute inset-0 bg-grid-white/[0.05] [mask-image:radial-gradient(white,transparent_85%)]" />
         <CardContent className="p-4 relative">
           <div className="flex items-center gap-3">
             <Avatar className="w-12 h-12 ring-2 ring-white/30">
               <AvatarImage src={farcasterUser?.pfpUrl} alt="Profile" />
-              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white font-bold">
+              <AvatarFallback className="bg-gradient-to-br from-[#433952] to-[#544863] text-white font-bold">
                 {farcasterUser?.username
                   ? farcasterUser.username.charAt(0).toUpperCase()
                   : accountAddress
@@ -587,12 +587,12 @@ export function UserStats() {
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <h2 className="text-base font-bold truncate">
+              <h2 className="text-base font-bold truncate text-white">
                 {farcasterUser?.username
                   ? `@${farcasterUser.username}`
                   : "Anonymous Trader"}
               </h2>
-              <p className="text-xs text-white/60 font-mono truncate">
+              <p className="text-xs text-white/70 font-mono truncate">
                 {accountAddress
                   ? `${accountAddress.slice(0, 6)}...${accountAddress.slice(
                       -4
@@ -618,26 +618,26 @@ export function UserStats() {
       {(stats.v1Markets > 0 || stats.v2Markets > 0) && (
         <div className="grid grid-cols-2 gap-3">
           {/* Binary Markets */}
-          <Card className="border-0 shadow-md bg-gradient-to-br from-blue-50 to-cyan-50 overflow-hidden relative">
-            <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 rounded-full blur-2xl" />
+          <Card className="border-0 shadow-md bg-gradient-to-br from-[#433952] to-[#544863] overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full blur-2xl" />
             <CardContent className="p-4 relative">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="text-xs font-medium text-blue-600 mb-0.5">
+                  <p className="text-xs font-semibold text-white/80 mb-0.5">
                     Binary Markets v1
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-white">
                     {stats.v1Markets}
                   </p>
                 </div>
-                <div className="p-2 bg-blue-500/10 rounded-lg">
+                <div className="p-2 bg-white/10 rounded-lg">
                   <span className="text-lg">📊</span>
                 </div>
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-600">Win Rate</span>
-                  <span className="font-bold text-blue-600">
+                  <span className="text-white/70 font-medium">Win Rate</span>
+                  <span className="font-bold text-white">
                     {stats.v1Markets > 0
                       ? (
                           (stats.v1Wins / (stats.v1Wins + stats.v1Losses)) *
@@ -648,8 +648,8 @@ export function UserStats() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-600">W/L</span>
-                  <span className="font-medium text-gray-900">
+                  <span className="text-white/70 font-medium">W/L</span>
+                  <span className="font-medium text-white">
                     {stats.v1Wins}/{stats.v1Losses}
                   </span>
                 </div>
@@ -658,26 +658,26 @@ export function UserStats() {
           </Card>
 
           {/* Multi-Option Markets */}
-          <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-50 to-teal-50 overflow-hidden relative">
-            <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 rounded-full blur-2xl" />
+          <Card className="border-0 shadow-md bg-gradient-to-br from-[#544863] to-[#352c3f] overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full blur-2xl" />
             <CardContent className="p-4 relative">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="text-xs font-medium text-emerald-600 mb-0.5">
+                  <p className="text-xs font-semibold text-white/80 mb-0.5">
                     Multi-Option
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-white">
                     {stats.v2Markets}
                   </p>
                 </div>
-                <div className="p-2 bg-emerald-500/10 rounded-lg">
+                <div className="p-2 bg-white/10 rounded-lg">
                   <span className="text-lg">📈</span>
                 </div>
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-600">Win Rate</span>
-                  <span className="font-bold text-emerald-600">
+                  <span className="text-white/70 font-medium">Win Rate</span>
+                  <span className="font-bold text-white">
                     {stats.v2Markets > 0
                       ? (
                           (stats.v2Wins / (stats.v2Wins + stats.v2Losses)) *
@@ -688,8 +688,8 @@ export function UserStats() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-600">W/L</span>
-                  <span className="font-medium text-gray-900">
+                  <span className="text-white/70 font-medium">W/L</span>
+                  <span className="font-medium text-white">
                     {stats.v2Wins}/{stats.v2Losses}
                   </span>
                 </div>
@@ -701,42 +701,54 @@ export function UserStats() {
 
       {/* V2 Portfolio Details */}
       {stats.v2Portfolio && (
-        <Card className="border-0 shadow-md bg-white">
+        <Card className="border-0 shadow-md bg-gradient-to-br from-[#433952] to-[#544863]">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold text-gray-900">
+            <CardTitle className="text-sm font-bold text-white">
               Portfolio Overview
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-2">
             <div className="grid grid-cols-2 gap-2">
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-gray-500 mb-0.5">Total Trades</p>
-                <p className="text-lg font-bold text-gray-900">
+              <div className="p-3 bg-white/10 rounded-lg">
+                <p className="text-xs font-semibold text-white/80 mb-0.5">
+                  Total Trades
+                </p>
+                <p className="text-lg font-bold text-white">
                   {stats.v2TradeCount}
                 </p>
               </div>
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-gray-500 mb-0.5">Contract Trades</p>
-                <p className="text-lg font-bold text-gray-900">
+              <div className="p-3 bg-white/10 rounded-lg">
+                <p className="text-xs font-semibold text-white/80 mb-0.5">
+                  Contract Trades
+                </p>
+                <p className="text-lg font-bold text-white">
                   {stats.v2Portfolio.tradeCount}
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <p className="text-xs text-blue-600 mb-0.5">Invested</p>
-                <p className="text-sm font-bold text-gray-900 truncate">
+              <div className="p-3 bg-white/10 rounded-lg">
+                <p className="text-xs font-semibold text-white/80 mb-0.5">
+                  Invested
+                </p>
+                <p className="text-sm font-bold text-white truncate">
                   {formatAmount(stats.v2Portfolio.totalInvested)}
                 </p>
-                <p className="text-xs text-gray-500">{tokenSymbol}</p>
+                <p className="text-xs text-white/70 font-medium">
+                  {tokenSymbol}
+                </p>
               </div>
-              <div className="p-3 bg-green-50 rounded-lg">
-                <p className="text-xs text-green-600 mb-0.5">Winnings</p>
-                <p className="text-sm font-bold text-gray-900 truncate">
+              <div className="p-3 bg-white/10 rounded-lg">
+                <p className="text-xs font-semibold text-white/80 mb-0.5">
+                  Winnings
+                </p>
+                <p className="text-sm font-bold text-white truncate">
                   {formatAmount(stats.v2Portfolio.totalWinnings)}
                 </p>
-                <p className="text-xs text-gray-500">{tokenSymbol}</p>
+                <p className="text-xs text-white/70 font-medium">
+                  {tokenSymbol}
+                </p>
               </div>
             </div>
 

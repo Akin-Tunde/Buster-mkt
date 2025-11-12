@@ -75,7 +75,7 @@ export function VoteHistory() {
   const { toast } = useToast();
   const [votes, setVotes] = useState<DisplayVote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [tokenSymbol, setTokenSymbol] = useState<string>("buster");
+  const [, setTokenSymbol] = useState<string>("buster");
   const [tokenDecimals, setTokenDecimals] = useState<number>(18);
   const [search, setSearch] = useState<string>("");
   const [sortKey, setSortKey] = useState<SortKey>("timestamp");
@@ -114,9 +114,9 @@ export function VoteHistory() {
       if (!cached) {
         return { votes: [], marketInfo: {}, timestamp: 0 };
       }
-      
+
       const parsed = JSON.parse(cached);
-      
+
       // Convert string values back to BigInt for amount and timestamp
       if (parsed.votes && Array.isArray(parsed.votes)) {
         parsed.votes = parsed.votes.map((vote: any) => ({
@@ -125,7 +125,7 @@ export function VoteHistory() {
           timestamp: BigInt(vote.timestamp),
         }));
       }
-      
+
       return parsed;
     } catch {
       return { votes: [], marketInfo: {}, timestamp: 0 };
