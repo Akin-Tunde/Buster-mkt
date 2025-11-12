@@ -50,9 +50,9 @@ export default function LeaderboardComponent({
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center p-10">
+      <div className="flex justify-center items-center p-10 bg-gray-900 min-h-screen">
         <svg
-          className="animate-spin h-8 w-8 text-blue-500"
+          className="animate-spin h-8 w-8 text-blue-400"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -76,14 +76,18 @@ export default function LeaderboardComponent({
   }
 
   if (error) {
-    return <div className="p-4 text-center text-red-600">{error}</div>;
+    return (
+      <div className="p-4 text-center text-red-400 bg-gray-900 min-h-screen">
+        {error}
+      </div>
+    );
   }
 
   if (!data) {
     return (
-      <div className="flex flex-col items-center justify-center p-6 text-center">
+      <div className="flex flex-col items-center justify-center p-6 text-center bg-gray-900 min-h-screen">
         <svg
-          className="w-12 h-12 text-gray-400"
+          className="w-12 h-12 text-gray-500"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -97,10 +101,10 @@ export default function LeaderboardComponent({
             d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
           />
         </svg>
-        <p className="mt-2 text-sm font-medium text-gray-500">
+        <p className="mt-2 text-sm font-medium text-gray-400">
           No leaderboard data available
         </p>
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-1 text-xs text-gray-500">
           Leaderboard will appear once predictions are resolved
         </p>
       </div>
@@ -108,21 +112,21 @@ export default function LeaderboardComponent({
   }
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col">
+    <div className="relative flex min-h-screen w-full flex-col bg-gray-900">
       {/* Top App Bar */}
-      <div className="sticky top-0 z-10 flex items-center bg-background-light dark:bg-background-dark px-4 pt-4 pb-2">
-        <h1 className="flex-1 text-center text-lg font-bold leading-tight tracking-[-0.015em] text-gray-900 dark:text-white">
+      <div className="sticky top-0 z-10 flex items-center bg-[#433952]/80 backdrop-blur-sm border-b border-[#544863] px-4 pt-4 pb-2">
+        <h1 className="flex-1 text-center text-lg font-bold leading-tight tracking-[-0.015em] text-gray-100">
           Leaderboard
         </h1>
       </div>
 
       {/* Segmented Buttons */}
       <div className="px-4 py-3">
-        <div className="flex h-10 flex-1 items-center justify-center rounded-lg bg-gray-200 dark:bg-[#352c3f] p-1">
+        <div className="flex h-10 flex-1 items-center justify-center rounded-lg bg-[#352c3f]/80 border border-[#544863] p-1">
           {(["Accuracy", "Trading Volume"] as const).map((type) => (
             <label
               key={type}
-              className="flex h-full grow cursor-pointer items-center justify-center overflow-hidden rounded-lg px-2 text-sm font-medium leading-normal text-gray-600 dark:text-[#ac9fbc] has-[:checked]:bg-white has-[:checked]:text-gray-900 has-[:checked]:shadow-sm dark:has-[:checked]:bg-primary dark:has-[:checked]:text-white"
+              className="flex h-full grow cursor-pointer items-center justify-center overflow-hidden rounded-lg px-2 text-sm font-medium leading-normal text-gray-400 has-[:checked]:bg-[#544863] has-[:checked]:text-gray-100 has-[:checked]:shadow-sm transition-colors"
             >
               <span className="truncate">{type}</span>
               <input
@@ -146,17 +150,15 @@ export default function LeaderboardComponent({
           <div
             key={time}
             onClick={() => setTimeFrame(time)}
-            className={`flex h-8 shrink-0 cursor-pointer items-center justify-center gap-x-2 rounded-full ${
+            className={`flex h-8 shrink-0 cursor-pointer items-center justify-center gap-x-2 rounded-full transition-colors ${
               timeFrame === time
-                ? "bg-primary"
-                : "bg-gray-200 dark:bg-[#352c3f]"
+                ? "bg-[#544863] border border-[#544863]"
+                : "bg-[#352c3f]/80 border border-[#544863]/50"
             } pl-4 pr-4`}
           >
             <p
               className={`text-sm font-medium leading-normal ${
-                timeFrame === time
-                  ? "text-white"
-                  : "text-gray-800 dark:text-white"
+                timeFrame === time ? "text-gray-100" : "text-gray-400"
               }`}
             >
               {time}
@@ -208,7 +210,7 @@ export default function LeaderboardComponent({
                 </div>
               </div>
               <p
-                className={`text-gray-900 dark:text-white ${
+                className={`text-gray-100 ${
                   entry.rank === 1
                     ? "text-base font-bold"
                     : "text-sm font-semibold"
@@ -219,8 +221,8 @@ export default function LeaderboardComponent({
               <p
                 className={`${
                   entry.rank === 1
-                    ? "text-primary text-sm font-semibold"
-                    : "text-gray-500 dark:text-[#ac9fbc] text-xs"
+                    ? "text-blue-400 text-sm font-semibold"
+                    : "text-gray-400 text-xs"
                 }`}
               >
                 {entry.accuracy}%
@@ -234,35 +236,33 @@ export default function LeaderboardComponent({
         {data.slice(3).map((entry) => (
           <div
             key={entry.rank}
-            className="flex items-center rounded-lg bg-gray-100 dark:bg-[#352c3f]/50 p-3 gap-4"
+            className="flex items-center rounded-lg bg-[#433952]/50 backdrop-blur-sm border border-[#544863] p-3 gap-4 hover:bg-[#433952]/70 transition-colors"
           >
-            <p className="w-6 text-center text-sm font-semibold text-gray-500 dark:text-gray-400">
+            <p className="w-6 text-center text-sm font-semibold text-gray-400">
               {entry.rank}
             </p>
             <img
-              className="h-10 w-10 rounded-full object-cover"
+              className="h-10 w-10 rounded-full object-cover border-2 border-[#544863]"
               src={entry.pfp_url || "/default-avatar.png"}
               alt={`${entry.username}'s avatar`}
             />
             <div className="flex-grow">
-              <p className="font-semibold text-gray-900 dark:text-white">
-                {entry.username}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="font-semibold text-gray-100">{entry.username}</p>
+              <p className="text-xs text-gray-400">
                 {entry.voteCount} predictions
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <p className="font-bold text-gray-900 dark:text-white">
+              <p className="font-bold text-gray-200">
                 {leaderboardType === "Accuracy"
                   ? `${entry.accuracy}%`
                   : `${entry.winnings.toFixed(2)} $BUSTER`}
               </p>
               {entry.trend !== "none" &&
                 (entry.trend === "up" ? (
-                  <ArrowUpCircle className="text-green-500 size-5" />
+                  <ArrowUpCircle className="text-green-400 size-5" />
                 ) : (
-                  <ArrowDownCircle className="text-red-500 size-5" />
+                  <ArrowDownCircle className="text-red-400 size-5" />
                 ))}
             </div>
           </div>
@@ -271,13 +271,13 @@ export default function LeaderboardComponent({
 
       {/* Sticky "My Rank" Banner */}
       {data.find((entry) => entry.fid) && (
-        <div className="fixed bottom-0 left-0 right-0 z-10 p-4 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-sm">
-          <div className="flex items-center rounded-lg bg-primary/20 dark:bg-primary/30 p-3 gap-4 border border-primary/50">
-            <p className="w-6 text-center text-sm font-bold text-primary">
+        <div className="fixed bottom-0 left-0 right-0 z-10 p-4 bg-[#433952]/90 backdrop-blur-md border-t border-[#544863]">
+          <div className="flex items-center rounded-lg bg-[#544863]/50 backdrop-blur-sm p-3 gap-4 border border-[#544863]">
+            <p className="w-6 text-center text-sm font-bold text-blue-400">
               {data.find((entry) => entry.fid)?.rank || "-"}
             </p>
             <img
-              className="h-10 w-10 rounded-full object-cover"
+              className="h-10 w-10 rounded-full object-cover border-2 border-blue-400"
               src={
                 data.find((entry) => entry.fid)?.pfp_url ||
                 "/default-avatar.png"
@@ -285,11 +285,9 @@ export default function LeaderboardComponent({
               alt="Your avatar"
             />
             <div className="flex-grow">
-              <p className="font-bold text-gray-900 dark:text-white">
-                Your Rank
-              </p>
+              <p className="font-bold text-gray-100">Your Rank</p>
             </div>
-            <p className="font-bold text-gray-900 dark:text-white">
+            <p className="font-bold text-gray-200">
               {leaderboardType === "Accuracy"
                 ? `${data.find((entry) => entry.fid)?.accuracy}%`
                 : `${data

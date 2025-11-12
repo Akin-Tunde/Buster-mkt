@@ -17,8 +17,8 @@ import {
 import { Address } from "viem";
 
 const cache = new NodeCache({ stdTTL: 3600, checkperiod: 120 }); // 1-hour TTL
-const CACHE_KEY_PREFIX = "leaderboard_v9_"; // Updated version
-const NEYNAR_CACHE_KEY = "neynar_users_v9";
+const CACHE_KEY_PREFIX = "leaderboard_v10_"; // Updated version - fixed ROI calculation
+const NEYNAR_CACHE_KEY = "neynar_users_v10";
 const PAGE_SIZE = 100; // Users per V1 contract call
 const V2_BATCH_SIZE = 50; // Addresses per V2 multicall batch
 
@@ -106,11 +106,39 @@ function getCacheKey(type: LeaderboardType, timeframe: TimeFrame) {
   return `${CACHE_KEY_PREFIX}${type}_${timeframe}`;
 }
 
-function calculateAccuracy(wins: bigint, totalTrades: number): number {
+function calculateAccuracy(totalWinnings: bigint, totalInvested: bigint, totalTrades: number): number {
+  // Calculate a normalized success score (0-100%)
+  // Since we don't have win/loss counts, we derive it from profitability
   if (totalTrades === 0) return 0;
-  // Convert BigInt to number for calculation
-  const winsNumber = Number(wins);
-  return Math.round((winsNumber / totalTrades) * 100);
+  
+  const normalizedWinnings = Number(totalWinnings) / 1e18;
+  const normalizedInvested = Number(totalInvested) / 1e18;
+  
+  // If invested amount is tracked and valid
+  if (normalizedInvested > 0) {
+    // Calculate net profit
+    const netProfit = normalizedWinnings - normalizedInvested;
+    const profitRatio = netProfit / normalizedInvested;
+    
+    // Convert to 0-100 scale where:
+    // -100% loss = 0% accuracy
+    // 0% profit = 50% accuracy  
+    // +100% profit = 100% accuracy
+    const accuracyScore = Math.min(100, Math.max(0, (profitRatio + 1) * 50));
+    
+    return Math.round(accuracyScore);
+  }
+  
+  // For users without investment tracking (V1 or edge cases)
+  // Estimate based on average performance per trade
+  const avgWinPerTrade = normalizedWinnings / totalTrades;
+  
+  // Assume typical trade size is 50 tokens
+  // If someone wins 50 tokens per trade on average = 50% accuracy
+  // If they win 100 tokens per trade = 100% accuracy
+  const estimatedAccuracy = Math.min(100, (avgWinPerTrade / 100) * 100);
+  
+  return Math.max(0, Math.round(estimatedAccuracy));
 }
 
 function calculateTrend(
@@ -194,6 +222,7 @@ export async function GET(request: Request) {
       user: Address;
       totalWinnings: bigint;
       voteCount: number;
+      totalInvested?: bigint;
     }[] = [];
 
     for (
@@ -222,6 +251,7 @@ export async function GET(request: Request) {
       user: Address;
       totalWinnings: bigint;
       voteCount: number;
+      totalInvested: bigint;
     }[] = [];
 
     try {
@@ -297,6 +327,7 @@ export async function GET(request: Request) {
               bigint,
               bigint
             ];
+            const totalInvested = portfolio[0]; // index 0 = totalInvested
             const totalWinnings = portfolio[1]; // index 1 = totalWinnings
             const tradeCount = Number(portfolio[4]); // index 4 = tradeCount
 
@@ -305,6 +336,7 @@ export async function GET(request: Request) {
                 user: batchAddresses[idx],
                 totalWinnings,
                 voteCount: tradeCount,
+                totalInvested,
               });
             }
           }
@@ -320,7 +352,7 @@ export async function GET(request: Request) {
     // ==================== COMBINE V1 + V2 ====================
     const combinedEntries = new Map<
       string,
-      { user: Address; totalWinnings: bigint; voteCount: number }
+      { user: Address; totalWinnings: bigint; voteCount: number; totalInvested: bigint }
     >();
 
     // Add V1 entries
@@ -329,6 +361,7 @@ export async function GET(request: Request) {
         user: entry.user,
         totalWinnings: entry.totalWinnings,
         voteCount: entry.voteCount,
+        totalInvested: 0n, // V1 doesn't track totalInvested
       });
     });
 
@@ -343,6 +376,8 @@ export async function GET(request: Request) {
           totalWinnings:
             BigInt(existing.totalWinnings) + BigInt(entry.totalWinnings),
           voteCount: Number(existing.voteCount) + Number(entry.voteCount),
+          totalInvested:
+            BigInt(existing.totalInvested) + BigInt(entry.totalInvested),
         });
       } else {
         // User only exists in V2
@@ -350,6 +385,7 @@ export async function GET(request: Request) {
           user: entry.user,
           totalWinnings: entry.totalWinnings,
           voteCount: entry.voteCount,
+          totalInvested: entry.totalInvested,
         });
       }
     });
@@ -361,8 +397,8 @@ export async function GET(request: Request) {
         const normalizedWinnings =
           Number(entry.totalWinnings) / Math.pow(10, tokenDecimals);
         const voteCount = Number(entry.voteCount);
-        // Calculate accuracy using the number values
-        const accuracy = calculateAccuracy(entry.totalWinnings, voteCount);
+        // Calculate accuracy/ROI using totalInvested
+        const accuracy = calculateAccuracy(entry.totalWinnings, entry.totalInvested, voteCount);
 
         return {
           address: entry.user.toLowerCase(),
