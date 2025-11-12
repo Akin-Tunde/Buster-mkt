@@ -65,14 +65,13 @@ export function MarketResolver() {
 
   const [markets, setMarkets] = useState<MarketInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [expandedMarketId, setExpandedMarketId] = useState<number | null>(null);
-  const [resolutionData, setResolutionData] = useState<{
-    [key: number]: { winningOptionId: string; disputeReason: string };
-  }>({});
+  const [selectedMarket, setSelectedMarket] = useState<MarketInfo | null>(null);
+  const [winningOptionId, setWinningOptionId] = useState<string>("");
+  const [disputeReason, setDisputeReason] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<
     "all" | "ready" | "resolved" | "disputed"
-  >("all");
+  >("all"); // Changed default from "ready" to "all"
 
   // Get market count from contract
   const { data: marketCount } = useReadContract({
@@ -220,7 +219,7 @@ export function MarketResolver() {
     refetchInterval: 30000,
   });
 
-  const { writeContract, data: hash, isPending } = useWriteContract();
+  const { writeContract, data: hash, error, isPending } = useWriteContract();
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } =
     useWaitForTransactionReceipt({
@@ -299,39 +298,141 @@ export function MarketResolver() {
     mapMarkets((marketsData as any) || undefined);
   }, [marketsData]);
 
+  // Details for a single selected market can be fetched from the contract when needed
+  const { data: selectedMarketEntity, refetch: refetchSelectedMarket } =
+    useQuery({
+      queryKey: ["market", selectedMarket?.marketId ?? null],
+      queryFn: async () => {
+        if (!selectedMarket) return null;
+
+        try {
+          const [
+            marketInfo,
+            optionCountRaw,
+            totalVolumeRaw,
+            winningOptionRaw,
+            earlyResolution,
+          ] = await Promise.all([
+            publicClient.readContract({
+              address: PolicastViews,
+              abi: PolicastViewsAbi,
+              functionName: "getMarketInfo",
+              args: [BigInt(selectedMarket.marketId)],
+            }),
+            publicClient.readContract({
+              address: PolicastViews,
+              abi: PolicastViewsAbi,
+              functionName: "getMarketOptionCount",
+              args: [BigInt(selectedMarket.marketId)],
+            }),
+            publicClient.readContract({
+              address: PolicastViews,
+              abi: PolicastViewsAbi,
+              functionName: "getMarketTotalVolume",
+              args: [BigInt(selectedMarket.marketId)],
+            }),
+            publicClient.readContract({
+              address: PolicastViews,
+              abi: PolicastViewsAbi,
+              functionName: "getMarketResolvedOutcome",
+              args: [BigInt(selectedMarket.marketId)],
+            }),
+            publicClient.readContract({
+              address: PolicastViews,
+              abi: PolicastViewsAbi,
+              functionName: "getMarketEarlyResolutionAllowed",
+              args: [BigInt(selectedMarket.marketId)],
+            }),
+          ]);
+
+          const optionCount = Number(optionCountRaw);
+          const options = [] as string[];
+          for (let i = 0; i < optionCount; i++) {
+            const optionData = await publicClient.readContract({
+              address: PolicastViews,
+              abi: PolicastViewsAbi,
+              functionName: "getMarketOption",
+              args: [BigInt(selectedMarket.marketId), BigInt(i)],
+            });
+            options.push(optionData[0]);
+          }
+
+          const serializedMarketInfo = [
+            marketInfo[0],
+            marketInfo[1],
+            Number(marketInfo[2]),
+            Number(marketInfo[3]),
+            optionCount,
+            marketInfo[5],
+            marketInfo[5],
+            Number(marketInfo[4]),
+            marketInfo[6],
+            Number(totalVolumeRaw),
+          ];
+
+          return {
+            marketInfo: serializedMarketInfo,
+            creator: (marketInfo[7] as string) || "",
+            earlyResolution: Boolean(earlyResolution),
+            options,
+            winningOptionId: BigInt(winningOptionRaw),
+          };
+        } catch (error) {
+          console.error("Error fetching selected market:", error);
+          return null;
+        }
+      },
+      enabled: !!selectedMarket,
+    });
+
+  useEffect(() => {
+    if (!selectedMarketEntity) return;
+    // merge details from the contract calls
+    setSelectedMarket((prev) => {
+      if (!prev) return prev;
+      const { marketInfo, creator, earlyResolution, options, winningOptionId } =
+        selectedMarketEntity;
+      const resolved = Boolean(marketInfo[5]);
+
+      return {
+        ...prev,
+        creator: creator || prev.creator,
+        options: options || prev.options,
+        resolved,
+        totalShares: Array(options?.length || 0).fill(0n),
+        earlyResolutionAllowed: Boolean(earlyResolution),
+        winningOptionId:
+          typeof winningOptionId === "bigint"
+            ? winningOptionId
+            : prev.winningOptionId,
+      };
+    });
+  }, [selectedMarketEntity]);
+
   useEffect(() => {
     // markets are loaded via React Query; no on-chain count/fetch loop required
   }, [isConnected]);
 
-  const handleResolveMarket = async (
-    marketId: number,
-    winningOptionId: string
-  ) => {
-    if (!winningOptionId || !hasResolverAccess) return;
+  const handleResolveMarket = async () => {
+    if (!selectedMarket || !winningOptionId || !hasResolverAccess) return;
 
-    const market = markets.find((m) => m.marketId === marketId);
-    if (!market) return;
+    // Check early resolution constraints
+    if (selectedMarket.earlyResolutionAllowed) {
+      const now = Math.floor(Date.now() / 1000);
+      const endTime = Number(selectedMarket.endTime);
+      const timeUntilEnd = endTime - now;
+    }
 
     try {
       await (writeContract as any)({
         address: V2contractAddress,
         abi: V2contractAbi,
         functionName: "resolveMarket",
-        args: [BigInt(marketId), BigInt(winningOptionId)],
+        args: [BigInt(selectedMarket.marketId), BigInt(winningOptionId)],
       });
 
-      // Clear the expanded state after submission
-      setExpandedMarketId(null);
-      setResolutionData((prev) => {
-        const updated = { ...prev };
-        delete updated[marketId];
-        return updated;
-      });
-
-      toast({
-        title: "Market Resolution Submitted",
-        description: "Transaction has been submitted to the blockchain.",
-      });
+      setSelectedMarket(null);
+      setWinningOptionId("");
     } catch (error) {
       console.error("Error resolving market:", error);
       toast({
@@ -342,32 +443,19 @@ export function MarketResolver() {
     }
   };
 
-  const handleDisputeMarket = async (
-    marketId: number,
-    disputeReason: string
-  ) => {
-    if (!disputeReason.trim() || !hasResolverAccess) return;
+  const handleDisputeMarket = async () => {
+    if (!selectedMarket || !disputeReason.trim() || !hasResolverAccess) return;
 
     try {
       await (writeContract as any)({
         address: V2contractAddress,
         abi: V2contractAbi,
         functionName: "disputeMarket",
-        args: [BigInt(marketId), disputeReason],
+        args: [BigInt(selectedMarket.marketId), disputeReason],
       });
 
-      // Clear the expanded state after submission
-      setExpandedMarketId(null);
-      setResolutionData((prev) => {
-        const updated = { ...prev };
-        delete updated[marketId];
-        return updated;
-      });
-
-      toast({
-        title: "Dispute Submitted",
-        description: "Transaction has been submitted to the blockchain.",
-      });
+      setSelectedMarket(null);
+      setDisputeReason("");
     } catch (error) {
       console.error("Error disputing market:", error);
       toast({
@@ -376,10 +464,6 @@ export function MarketResolver() {
         variant: "destructive",
       });
     }
-  };
-
-  const toggleMarketExpansion = (marketId: number) => {
-    setExpandedMarketId((prev) => (prev === marketId ? null : marketId));
   };
 
   const filteredMarkets = markets.filter((market) => {
@@ -570,298 +654,254 @@ export function MarketResolver() {
             </div>
           ) : (
             <div className="space-y-4">
-              {filteredMarkets.map((market) => {
-                const isExpanded = expandedMarketId === market.marketId;
-                const currentResolutionData = resolutionData[
-                  market.marketId
-                ] || { winningOptionId: "", disputeReason: "" };
-
-                return (
-                  <Card key={market.marketId} className="border-0 bg-white/10">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <Link href={`/market/${market.marketId}`}>
-                            <h3 className="font-medium text-lg text-white hover:text-white/80 transition-colors line-clamp-2">
-                              {market.question}
-                            </h3>
-                          </Link>
-                          <p className="text-sm text-white/70 mt-1 line-clamp-2">
-                            {market.description}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          {getStatusBadge(market)}
-                          {market.earlyResolutionAllowed &&
-                            !market.resolved && (
-                              <Badge
-                                variant="outline"
-                                className="text-blue-300 border-blue-300"
-                              >
-                                Early
-                              </Badge>
-                            )}
-                        </div>
+              {filteredMarkets.map((market) => (
+                <Card key={market.marketId} className="border-0 bg-white/10">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <Link href={`/market/${market.marketId}`}>
+                          <h3 className="font-medium text-lg text-white hover:text-white/80 transition-colors line-clamp-2">
+                            {market.question}
+                          </h3>
+                        </Link>
+                        <p className="text-sm text-white/70 mt-1 line-clamp-2">
+                          {market.description}
+                        </p>
                       </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
-                        <div>
-                          <span className="text-white/60">Market ID:</span>
-                          <p className="font-medium text-white">
-                            #{market.marketId}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-white/60">End Date:</span>
-                          <p className="font-medium text-white">
-                            {formatDate(market.endTime)}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-white/60">Options:</span>
-                          <p className="font-medium text-white">
-                            {Number(market.optionCount)}
-                          </p>
-                        </div>
-                        <div>
-                          <span className="text-white/60">
-                            Total Participants:
-                          </span>
-                          <p className="font-medium text-white">
-                            {market.totalShares.reduce(
-                              (sum, shares) =>
-                                sum + Number(formatPrice(shares)),
-                              0
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Options Display */}
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium mb-2 text-white">
-                          Options:
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {market.options.map((option, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center justify-between p-2 bg-white/10 rounded border border-white/20"
-                            >
-                              <span className="text-sm text-white">
-                                {option}
-                              </span>
-                              <div className="text-xs text-white/70">
-                                {formatPrice(market.totalShares[index])} shares
-                                {market.resolved &&
-                                  Number(market.winningOptionId) === index && (
-                                    <CheckCircle className="inline h-3 w-3 ml-1 text-green-300" />
-                                  )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Inline Resolution Interface */}
-                      {isExpanded && !market.resolved && !market.disputed && (
-                        <div className="mb-4 p-4 bg-[#544863]/30 rounded-lg border border-white/20 space-y-3">
-                          <h4 className="text-sm font-semibold text-white">
-                            Resolve Market
-                          </h4>
-                          <div>
-                            <Label
-                              htmlFor={`winning-option-${market.marketId}`}
-                              className="text-white/80 text-sm"
-                            >
-                              Select Winning Option *
-                            </Label>
-                            <Select
-                              value={currentResolutionData.winningOptionId}
-                              onValueChange={(value) => {
-                                setResolutionData((prev) => ({
-                                  ...prev,
-                                  [market.marketId]: {
-                                    ...prev[market.marketId],
-                                    winningOptionId: value,
-                                  },
-                                }));
-                              }}
-                            >
-                              <SelectTrigger className="bg-white/10 border-white/20 text-white mt-1">
-                                <SelectValue placeholder="Choose the winning option" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {market.options.map((option, index) => (
-                                  <SelectItem
-                                    key={index}
-                                    value={index.toString()}
-                                  >
-                                    {option} (
-                                    {formatPrice(market.totalShares[index])}{" "}
-                                    shares)
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              onClick={() =>
-                                handleResolveMarket(
-                                  market.marketId,
-                                  currentResolutionData.winningOptionId
-                                )
-                              }
-                              disabled={
-                                !currentResolutionData.winningOptionId ||
-                                isPending ||
-                                isConfirming
-                              }
-                              className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white"
-                              size="sm"
-                            >
-                              {isPending || isConfirming ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Gavel className="h-4 w-4" />
-                              )}
-                              Confirm Resolution
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() =>
-                                toggleMarketExpansion(market.marketId)
-                              }
-                              className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-                              size="sm"
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Inline Dispute Interface */}
-                      {isExpanded && market.resolved && !market.disputed && (
-                        <div className="mb-4 p-4 bg-[#544863]/30 rounded-lg border border-white/20 space-y-3">
-                          <h4 className="text-sm font-semibold text-white">
-                            Dispute Resolution
-                          </h4>
-                          <div>
-                            <Label
-                              htmlFor={`dispute-reason-${market.marketId}`}
-                              className="text-white/80 text-sm"
-                            >
-                              Dispute Reason *
-                            </Label>
-                            <Textarea
-                              id={`dispute-reason-${market.marketId}`}
-                              placeholder="Explain why this resolution should be disputed..."
-                              value={currentResolutionData.disputeReason}
-                              onChange={(e) => {
-                                setResolutionData((prev) => ({
-                                  ...prev,
-                                  [market.marketId]: {
-                                    ...prev[market.marketId],
-                                    disputeReason: e.target.value,
-                                  },
-                                }));
-                              }}
-                              rows={3}
-                              className="bg-white/10 border-white/20 text-white placeholder:text-white/60 mt-1"
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              onClick={() =>
-                                handleDisputeMarket(
-                                  market.marketId,
-                                  currentResolutionData.disputeReason
-                                )
-                              }
-                              disabled={
-                                !currentResolutionData.disputeReason.trim() ||
-                                isPending ||
-                                isConfirming
-                              }
-                              className="flex items-center gap-2 bg-red-500/80 hover:bg-red-500 text-white"
-                              size="sm"
-                            >
-                              {isPending || isConfirming ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <AlertTriangle className="h-4 w-4" />
-                              )}
-                              Submit Dispute
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() =>
-                                toggleMarketExpansion(market.marketId)
-                              }
-                              className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-                              size="sm"
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-2">
-                        {(market.canResolve || market.earlyResolutionAllowed) &&
-                          !market.resolved &&
-                          !market.disputed &&
-                          !isExpanded && (
-                            <Button
-                              size="sm"
-                              onClick={() =>
-                                toggleMarketExpansion(market.marketId)
-                              }
-                              className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white"
-                            >
-                              <Gavel className="h-4 w-4" />
-                              {market.earlyResolutionAllowed &&
-                              Number(market.endTime) * 1000 > Date.now()
-                                ? "Early Resolve"
-                                : "Resolve Market"}
-                            </Button>
-                          )}
-
-                        {market.resolved && !market.disputed && !isExpanded && (
-                          <Button
+                      <div className="flex items-center gap-2 ml-4">
+                        {getStatusBadge(market)}
+                        {market.earlyResolutionAllowed && !market.resolved && (
+                          <Badge
                             variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              toggleMarketExpansion(market.marketId)
-                            }
-                            className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white border-white/20"
+                            className="text-blue-600 border-blue-200"
                           >
-                            <AlertTriangle className="h-4 w-4" />
-                            Dispute Resolution
+                            Er
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
+                      <div>
+                        <span className="text-white/60">Market ID:</span>
+                        <p className="font-medium text-white">
+                          #{market.marketId}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-white/60">End Date:</span>
+                        <p className="font-medium text-white">
+                          {formatDate(market.endTime)}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-white/60">Options:</span>
+                        <p className="font-medium text-white">
+                          {Number(market.optionCount)}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-white/60">
+                          Total Participants:
+                        </span>
+                        <p className="font-medium text-white">
+                          {market.totalShares.reduce(
+                            (sum, shares) => sum + Number(formatPrice(shares)),
+                            0
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Options Display */}
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium mb-2 text-white">
+                        Options:
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {market.options.map((option, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between p-2 bg-white/10 rounded border border-white/20"
+                          >
+                            <span className="text-sm text-white">{option}</span>
+                            <div className="text-xs text-white/70">
+                              {formatPrice(market.totalShares[index])} shares
+                              {market.resolved &&
+                                Number(market.winningOptionId) === index && (
+                                  <CheckCircle className="inline h-3 w-3 ml-1 text-green-300" />
+                                )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2">
+                      {(market.canResolve || market.earlyResolutionAllowed) &&
+                        !market.resolved &&
+                        !market.disputed && (
+                          <Button
+                            size="sm"
+                            onClick={() => setSelectedMarket(market)}
+                            className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white"
+                          >
+                            <Gavel className="h-4 w-4" />
+                            {market.earlyResolutionAllowed &&
+                            Number(market.endTime) * 1000 > Date.now()
+                              ? "Early Resolve"
+                              : "Resolve Market"}
                           </Button>
                         )}
 
-                        <Link href={`/market/${market.marketId}`}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-white hover:bg-white/10"
-                          >
-                            View Details
-                          </Button>
-                        </Link>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                      {market.resolved && !market.disputed && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedMarket(market)}
+                          className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white border-white/20"
+                        >
+                          <AlertTriangle className="h-4 w-4" />
+                          Dispute Resolution
+                        </Button>
+                      )}
+
+                      <Link href={`/market/${market.marketId}`}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-white hover:bg-white/10"
+                        >
+                          View Details
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Resolution Modal */}
+      {selectedMarket && (
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-[#433952] to-[#544863]">
+          <CardHeader>
+            <CardTitle className="text-white">
+              {selectedMarket.resolved ? "Dispute Market" : "Resolve Market"} #
+              {selectedMarket.marketId}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-white/10 rounded-lg border border-white/20">
+              <h3 className="font-medium mb-2 text-white">
+                {selectedMarket.question}
+              </h3>
+              <p className="text-sm text-white/80">
+                {selectedMarket.description}
+              </p>
+            </div>
+
+            {!selectedMarket.resolved ? (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="winningOption" className="text-white/80">
+                    Select Winning Option *
+                  </Label>
+                  <Select
+                    value={winningOptionId}
+                    onValueChange={setWinningOptionId}
+                  >
+                    <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                      <SelectValue placeholder="Choose the winning option" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedMarket.options.map((option, index) => (
+                        <SelectItem key={index} value={index.toString()}>
+                          {option} (
+                          {formatPrice(selectedMarket.totalShares[index])}{" "}
+                          shares)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleResolveMarket}
+                    disabled={!winningOptionId || isPending || isConfirming}
+                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white"
+                  >
+                    {isPending || isConfirming ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Gavel className="h-4 w-4" />
+                    )}
+                    Resolve Market
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedMarket(null)}
+                    className="bg-white/10 hover:bg-white/20 text-white border-white/20"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="disputeReason" className="text-white/80">
+                    Dispute Reason *
+                  </Label>
+                  <Textarea
+                    id="disputeReason"
+                    placeholder="Explain why this resolution should be disputed..."
+                    value={disputeReason}
+                    onChange={(e) => setDisputeReason(e.target.value)}
+                    rows={3}
+                    className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="destructive"
+                    onClick={handleDisputeMarket}
+                    disabled={
+                      !disputeReason.trim() || isPending || isConfirming
+                    }
+                    className="flex items-center gap-2 bg-red-500/80 hover:bg-red-500 text-white"
+                  >
+                    {isPending || isConfirming ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4" />
+                    )}
+                    Submit Dispute
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectedMarket(null)}
+                    className="bg-white/10 hover:bg-white/20 text-white border-white/20"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="p-4 bg-red-900/30 border border-red-400/30 rounded-lg">
+                <p className="text-red-200 text-sm">Error: {error.message}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
