@@ -16,7 +16,6 @@
 - [FAQ](#faq)
 - [Contributing](#contributing)
 - [License](#license)
-
 ---
 
 ## Introduction
